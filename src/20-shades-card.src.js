@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -16,7 +16,7 @@ const LAYOUTS = {
 const DEFAULTS = {
   layout: 'panel', show_climate: true, show_presets: true, show_schedule: true, show_individual: true, show_stop: true,
   preset_1: 25, preset_2: 50, preset_3: 75, open_word: 'Open', close_word: 'Close',
-  corners: 'rounded', fill_color: [36, 111, 168], card_spacing: 'standard',
+  corners: 'rounded', fill_color: [36, 111, 168], card_spacing: 'standard', size: 'large',
 };
 const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'layout', 'master_shade', 'extra_shades', 'hide_shades', 'temperature_sensor', 'humidity_sensor', 'schedule_automations'];
 const SKIP_CLASSES = ['garage', 'door', 'gate', 'damper'];
@@ -266,7 +266,8 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .SB .name{display:flex;align-items:center;gap:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .SB .chev{flex:none;--mdc-icon-size:20px;opacity:.6;transition:transform .2s}
 .SB.exp .chev{transform:rotate(180deg)}
-.SB .tmini{flex:none;text-align:right;font-size:13px;line-height:16px;color:rgba(235,241,248,.85);white-space:nowrap}
+.SB [data-nochev] .chev{display:none}
+.SB .tmini{flex:none;text-align:right;align-self:center;font-size:13px;line-height:16px;color:rgba(235,241,248,.85);white-space:nowrap}
 .SB .tmini b{display:block;font-size:15px;font-weight:650;color:#f7f9fc}
 .SB .mini{display:flex;gap:6px;flex:none}
 .SB .mini .btn{width:46px;height:46px;padding:0}
@@ -280,8 +281,51 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .L-bar_pill .seg button{display:flex;align-items:center;justify-content:center;width:46px}
 .L-bar_pill .seg button ha-icon{--mdc-icon-size:22px}
 .L-bar_pill .seg .mid{width:auto;min-width:62px;padding:0 6px;font-weight:700;font-size:16px;border-left:1px solid rgba(255,255,255,.18);border-right:1px solid rgba(255,255,255,.18);background:linear-gradient(90deg,rgba(var(--fill),.55) var(--p,0%),transparent var(--p,0%))}
-@container oss (max-width:400px){.SB .row1{gap:8px}.SB .ricon{width:38px;height:38px;border-radius:12px}.SB .ricon ha-icon{--mdc-icon-size:24px}.SB .mini{gap:4px}.SB .mini .btn{width:40px;height:40px;border-radius:13px}.SB .mini .btn ha-icon{--mdc-icon-size:20px}.SB .name{font-size:18px}.SB .tmini{font-size:12px;line-height:14px}.SB .tmini b{font-size:14px}.L-bar_pill .seg{height:42px}.L-bar_pill .seg button{width:38px}.L-bar_pill .seg .mid{min-width:52px;font-size:15px}}
+@container oss (max-width:420px){.SB.S-standard{--u:.85}.SB.S-large{--u:1.2}.SB.S-extra_large{--u:1.4}}
 @container oss (max-width:330px){.SB .tmini span{display:none}}
+
+/* ---- slim bar sizes (scale everything from one variable) ---- */
+.SB{--u:1}
+.SB.S-standard{--u:1}.SB.S-large{--u:1.35}.SB.S-extra_large{--u:1.7}
+.SB.S-large,.SB.S-extra_large{padding:calc(var(--pad,18px) * 1.15)}
+.SB .row1{gap:calc(10px * var(--u))}
+.SB .ricon{width:calc(44px * var(--u));height:calc(44px * var(--u));border-radius:calc(14px * var(--u))}
+.SB .ricon ha-icon{--mdc-icon-size:calc(28px * var(--u))}
+.SB .name{font-size:calc(21px * var(--u))}
+.SB .sub{font-size:calc(14px * var(--u));line-height:1.3}
+.SB .chev{--mdc-icon-size:calc(20px * var(--u))}
+.SB .tmini{font-size:calc(13px * var(--u));line-height:1.25}
+.SB .tmini b{font-size:calc(15px * var(--u))}
+.SB .mini{gap:calc(6px * var(--u))}
+.SB .mini .btn{width:calc(46px * var(--u));height:calc(46px * var(--u));border-radius:calc(16px * var(--u))}
+.SB .mini .btn ha-icon{--mdc-icon-size:calc(22px * var(--u))}
+.SB .more{margin-top:calc(12px * var(--u));gap:calc(8px * var(--u))}
+.SB .more .hs{--h:calc(52px * var(--u));--r:calc(16px * var(--u))}
+.SB .more .hs .l{font-size:calc(16px * var(--u))}
+.L-bar_pill .seg{height:calc(46px * var(--u))}
+.L-bar_pill .seg button{width:calc(46px * var(--u))}
+.L-bar_pill .seg button ha-icon{--mdc-icon-size:calc(22px * var(--u))}
+.L-bar_pill .seg .mid{min-width:calc(62px * var(--u));font-size:calc(16px * var(--u))}
+.L-bar_line .pline,.L-bar_line .ptrack{height:calc(5px * var(--u))}
+
+/* Large / Extra large: name + temperature on top, big full-width buttons underneath */
+.SB .bigs{position:relative;z-index:1;margin-top:calc(12px * var(--u))}
+.SB .bigs .hs{--h:calc(54px * var(--u));--r:calc(18px * var(--u))}
+.SB .bigs .hs .l{font-size:calc(17px * var(--u))}
+.SB.S-standard .bigs{display:none}
+.SB.S-large .row1,.SB.S-extra_large .row1{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i t m" "b b b";row-gap:calc(12px * var(--u))}
+.SB.S-large .ricon,.SB.S-extra_large .ricon{grid-area:i}
+.SB.S-large .title,.SB.S-extra_large .title{grid-area:t}
+.SB.S-large .tmini,.SB.S-extra_large .tmini{grid-area:m}
+.SB.S-large .mini,.SB.S-extra_large .mini,.SB.S-large .seg,.SB.S-extra_large .seg{grid-area:b;width:100%}
+.SB.S-large .mini,.SB.S-extra_large .mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:calc(8px * var(--u))}
+.SB.S-large .mini .btn,.SB.S-extra_large .mini .btn{width:auto;height:calc(70px * var(--u));border-radius:calc(14px * var(--u))}
+.SB.S-large .mini .btn ha-icon,.SB.S-extra_large .mini .btn ha-icon{--mdc-icon-size:calc(30px * var(--u))}
+.SB.S-large .seg,.SB.S-extra_large .seg{height:calc(70px * var(--u))}
+.SB.S-large .seg button ha-icon,.SB.S-extra_large .seg button ha-icon{--mdc-icon-size:calc(30px * var(--u))}
+.SB.S-large .seg .mid,.SB.S-extra_large .seg .mid{font-size:calc(20px * var(--u))}
+.SB.S-large .seg button,.SB.S-extra_large .seg button{flex:1}
+.SB.S-large .seg .mid,.SB.S-extra_large .seg .mid{flex:1.2}
 /* ---- layout: slide ---- */
 .L-slide{padding:0!important}
 .L-slide .big{--h:100%;position:relative;border-radius:inherit;border:0;min-height:132px;background:transparent}
@@ -440,9 +484,10 @@ class OneStopShadesCard extends HTMLElement {
       const inner = m.shades.length > 1 && c.show_individual ? this._individual(m) : this._hslider(m.master || 'all', m.shades.length === 1 ? nameOf(this._hass, m.shades[0]) : 'All shades');
       body = `${L === 'bar_fill' ? '<div class="bgfill"></div>' : ''}${L === 'bar_line' ? '<div class="ptrack"></div><div class="pline"></div>' : ''}
         <div class="row1"><div class="ricon"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
-        <div class="title" data-toggle role="button" aria-expanded="${this._expanded}"><div class="name"><span style="overflow:hidden;text-overflow:ellipsis">${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
+        <div class="title" data-toggle role="button" aria-expanded="${this._expanded}" ${(c.size || 'large') !== 'standard' && !(m.shades.length > 1 && c.show_individual) && !c.show_presets && !c.show_schedule ? 'data-nochev' : ''}><div class="name"><span style="overflow:hidden;text-overflow:ellipsis">${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
         ${tm}${btns}</div>
-        <div class="more ${this._expanded ? '' : 'hide'}" data-more>${inner}${this._presets()}${this._sched()}</div>`;
+        <div class="bigs">${this._hslider(m.master || 'all', m.shades.length > 1 ? 'All shades' : 'Shade')}</div>
+        <div class="more ${this._expanded ? '' : 'hide'}" data-more>${(c.size || 'large') === 'standard' ? inner : (m.shades.length > 1 && c.show_individual ? this._individual(m) : '')}${this._presets()}${this._sched()}</div>`;
     } else if (L === 'slide') {
       body = `<div class="hs big" data-slide="${esc(m.master || 'all')}" data-axis="x"><div class="f"></div></div>
         <div class="over">${this._head(m, false)}<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="pct" data-pct></div><div class="sub" data-sub></div></div>
@@ -466,7 +511,7 @@ class OneStopShadesCard extends HTMLElement {
       body = `${this._head(m)}<div class="cgrid"><div class="left"><div class="gauge" data-gauge><div class="in"><b data-pct></b><span data-sub></span></div></div>${this._buttons(3)}${this._presets()}</div>
         <div class="left"><div class="cols" style="--cn:${Math.min(cols.length, 4)}">${cols.map(id => `<div class="col"><div class="vs" data-slide="${esc(id)}" data-axis="y"><div class="f"></div><div class="l" data-pct-of="${esc(id)}"></div></div><div class="cn">${esc(cols.length > 1 ? nameOf(this._hass, id) : 'All shades')}</div></div>`).join('')}</div>${this._sched()}</div></div>`;
     }
-    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB' : ''} ${this._expanded ? 'exp' : ''}" style="${vars}">${body}</ha-card>`;
+    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB S-' + (c.size || 'large') : ''} ${this._expanded ? 'exp' : ''}" style="${vars}">${body}</ha-card>`;
     this._wire();
     this._built = true;
     this._update();
@@ -564,6 +609,7 @@ const schema = d => {
     { name: 'area', selector: { area: {} } },
     grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
     { name: 'layout', selector: sel(Object.entries(LAYOUTS)) },
+    { name: 'size', selector: sel([['standard', 'Standard'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
     section('g_shades', 'Which shades', 'mdi:roller-shade', [
       { name: 'master_shade', selector: { entity: { filter: { domain: 'cover' } } } },
       { name: 'extra_shades', selector: { entity: { multiple: true, filter: { domain: 'cover' } } } },
@@ -594,7 +640,7 @@ const schema = d => {
 };
 const LABELS = {
   edit_all: 'Master edit – change all Shades cards at once', reset_style: 'Use the shared style on this card (clear its own changes)',
-  area: 'Room', name: 'Card title', room_icon: 'Room icon', layout: 'Layout',
+  area: 'Room', name: 'Card title', room_icon: 'Room icon', layout: 'Layout', size: 'Size',
   master_shade: 'Main shade or shade group (controls them all)', extra_shades: 'Add shades from other rooms', hide_shades: 'Leave these shades out',
   show_climate: 'Temperature & humidity', show_individual: 'Each shade’s own slider', show_presets: 'Quick position buttons', show_stop: 'Stop button', show_schedule: 'Open / close times',
   temperature_sensor: 'Temperature sensor', humidity_sensor: 'Humidity sensor',
