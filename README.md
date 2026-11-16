@@ -31,6 +31,9 @@ Room temperature, what it's doing ("Heating to 21°"), mode buttons, set tempera
 ### One Stop - Plex card
 A full Plex page for a room's TV: Now Playing with controls, Continue Watching, Recently Added movies and TV, and every library with search, sort and show → season → episode browsing. Tap a title for Resume / Start over / Next episode on that room's Apple TV. Uses the included `one_stop_plex_play` script pattern (see the card editor's "Which TV plays it").
 
+### One Stop - Streaming card
+Browse and search Netflix, Disney+, Prime Video, Crave, Apple TV, Paramount+ and Hayu, filtered by country and plan so every title shown is one the home can watch (catalogue data from JustWatch). Tap a title to open it on the room's Apple TV, or open the app. YouTube, CBC Gem and TELUS TV+ open the app directly. Open a service directly with `?service=netflix` on the page URL.
+
 ## Install
 
 ### HACS (recommended)
