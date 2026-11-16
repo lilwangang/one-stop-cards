@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.4.1';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -16,7 +16,8 @@ const LAYOUTS = {
 const DEFAULTS = {
   layout: 'bar', show_climate: true, show_presets: true, show_schedule: true, show_individual: true, show_stop: true,
   preset_1: 25, preset_2: 50, preset_3: 75, open_word: 'Open', close_word: 'Close',
-  corners: 'rounded', fill_color: [36, 111, 168], card_spacing: 'standard', size: 'large',
+  corners: 'rounded', fill_color: [255, 183, 77], card_spacing: 'standard', size: 'large',
+  on_color: [35, 145, 86], off_color: [178, 52, 64], button_tint: 'soft', title_size: 'medium', open_glow: 'normal', button_style: 'tinted', slider_size: 'standard', show_icon: true,
 };
 const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'layout', 'master_shade', 'extra_shades', 'hide_shades', 'temperature_sensor', 'humidity_sensor', 'schedule_automations'];
 const SKIP_CLASSES = ['garage', 'door', 'gate', 'damper'];
@@ -327,6 +328,35 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .SB.S-large .seg .mid,.SB.S-extra_large .seg .mid{font-size:calc(20px * var(--u))}
 .SB.S-large .seg button,.SB.S-extra_large .seg button{flex:1}
 .SB.S-large .seg .mid,.SB.S-extra_large .seg .mid{flex:1.2}
+
+/* ---- light-card look (Large / Extra large slim bar) ---- */
+ha-card.SB.LC{transition:background .4s,border-color .4s}
+ha-card.SB.LC.open{background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.035) 48%,rgba(255,255,255,.075)),linear-gradient(rgba(var(--fill),var(--ga,.2)),rgba(var(--fill),calc(var(--ga,.2) * .5))),rgba(28,28,28,.62);
+  border-color:rgba(var(--fill),var(--gb,.34));box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(12px) saturate(1.15);-webkit-backdrop-filter:blur(12px) saturate(1.15)}
+.SB.LC .ricon{width:44px;height:44px;border-radius:14px;background:rgba(var(--fill),.10)}
+.SB.LC .ricon ha-icon{--mdc-icon-size:34px;color:rgb(var(--fill))}
+.SB.LC:not(.open) .ricon ha-icon{color:rgba(235,241,248,.7)}
+.SB.LC .name{font-size:var(--title,24px)}
+.SB.LC .sub{font-size:14px}
+.SB.LC .tmini{font-size:14px}.SB.LC .tmini b{font-size:18px}
+.SB.LC .row1{row-gap:12px}
+.SB.LC .pw{grid-area:b;display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:8px}
+.SB.LC .pbtn{height:var(--bh,76px);border-radius:var(--br,14px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:650;font-size:17px;line-height:1.2;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1);transition:transform .12s,filter .12s;background:var(--b-bg);border:var(--b-border);color:#f7f9fc}
+.SB.LC .pbtn ha-icon{--mdc-icon-size:30px}
+.SB.LC .pbtn.o{--b-bg:var(--on-bg);--b-border:var(--on-border);color:var(--on-fg,#f7f9fc)}
+.SB.LC .pbtn.c{--b-bg:var(--off-bg);--b-border:var(--off-border);color:var(--off-fg,#f7f9fc)}
+.SB.LC .pbtn.s{--b-bg:rgba(255,255,255,.08);--b-border:1px solid rgba(255,255,255,.2)}
+.SB.LC .bigs{margin-top:12px}
+.SB.LC .hs{--h:var(--slh,58px);--r:var(--slr,18px);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.SB.LC .more .hs{--h:calc(var(--slh,58px) - 4px)}
+.SB.LC.noicon .row1{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t m" "b b"}
+.SB.LC.noicon .ricon{display:none}
+.SB.LC .hs .f{background:rgb(var(--fill));opacity:.55;border-radius:inherit;transition:width .12s ease-out}
+.SB.LC .hs .l{justify-content:flex-start;gap:10px;padding:0 18px;font-size:16px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.SB.LC .hs .l ha-icon{--mdc-icon-size:24px}
+.SB.LC .hs .l b{margin-left:auto}
+.SB.LC .more{margin-top:12px;gap:8px}
 /* ---- layout: slide ---- */
 .L-slide{padding:0!important}
 .L-slide .big{--h:100%;position:relative;border-radius:inherit;border:0;min-height:132px;background:transparent}
@@ -400,7 +430,7 @@ class OneStopShadesCard extends HTMLElement {
     this._built = false; this._expanded = this._expanded || false;
     if (this._hass) this._render();
   }
-  _merge() { Shared._readCache(); this._cfg = { ...DEFAULTS, ...((Shared.data || {})[SECTION] || {}), ...this._raw }; }
+  _merge() { Shared._readCache(); const rl = (Shared.data || {}).room_lights || {}, look = {}; for (const k of ['on_color', 'off_color', 'button_tint', 'title_size', 'corners', 'font', 'button_style', 'slider_size', 'show_icon']) if (k in rl) look[k] = rl[k]; this._cfg = { ...DEFAULTS, ...look, ...((Shared.data || {})[SECTION] || {}), ...this._raw }; }
   connectedCallback() {
     this._onShared = () => { const b = JSON.stringify(this._cfg); this._merge(); if (JSON.stringify(this._cfg) === b && this._built) return; this._built = false; if (this._hass) this._render(); };
     Shared.listeners.add(this._onShared);
@@ -446,7 +476,7 @@ class OneStopShadesCard extends HTMLElement {
     return `<div class="head"><div class="ricon"><ha-icon icon="${esc(this._cfg.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
       <div class="title"><div class="name">${esc(this._title())}</div>${sub ? '<div class="sub" data-sub></div>' : ''}</div>${extra}${this._chips(m)}</div>`;
   }
-  _hslider(id, label, cls = '') { return `<div class="hs ${cls}" data-slide="${esc(id)}" data-axis="x"><div class="f"></div><div class="l"><span>${esc(label)}</span><b data-pct></b></div></div>`; }
+  _hslider(id, label, cls = '', icon = '') { return `<div class="hs ${cls}" data-slide="${esc(id)}" data-axis="x"><div class="f"></div><div class="l">${icon ? `<ha-icon icon="${icon}"></ha-icon>` : ''}<span>${esc(label)}</span><b data-pct></b></div></div>`; }
   _buttons(n = 3, ghost = false) {
     const c = this._cfg, parts = [`<button class="btn ${ghost ? 'ghost' : ''}" data-cmd="close"><ha-icon icon="mdi:window-shutter"></ha-icon><span>${esc(c.close_word)}</span></button>`];
     if (c.show_stop) parts.push(`<button class="btn ${ghost ? 'ghost' : ''}" data-cmd="stop"><ha-icon icon="mdi:stop-circle-outline"></ha-icon><span>Stop</span></button>`);
@@ -476,10 +506,23 @@ class OneStopShadesCard extends HTMLElement {
       `--radius:${{ square: '8px', rounded: '22px', extra_round: '32px' }[c.corners] || '22px'}`,
       `--pad:${{ compact: '12px', standard: '18px', roomy: '24px' }[c.card_spacing] || '18px'}`].join(';');
     const L = c.layout in LAYOUTS ? c.layout : 'bar';
+    const lift = (col, n) => col.map(v => Math.min(255, v + n)), tintA = { very_soft: .28, soft: .44, medium: .60, bold: .80 }[c.button_tint] || .44;
+    const onC = okRgb(c.on_color) ? c.on_color : DEFAULTS.on_color, offC = okRgb(c.off_color) ? c.off_color : DEFAULTS.off_color;
+    const look = (col, a) => ({ tinted: [rgba(col, a), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc'], solid: [rgba(col, 1), `1px solid ${rgba(lift(col, 40), .9)}`, '#fff'],
+      outline: ['transparent', `2px solid ${rgba(lift(col, 70), .95)}`, rgba(lift(col, 90), 1)], glass: ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', rgba(lift(col, 90), 1)] }[c.button_style] || [rgba(col, a), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc']);
+    const oL = look(onC, tintA), cL = look(offC, tintA + .02);
+    const lcVars = [`--on-bg:${oL[0]}`, `--on-border:${oL[1]}`, `--on-fg:${oL[2]}`, `--off-bg:${cL[0]}`, `--off-border:${cL[1]}`, `--off-fg:${cL[2]}`, `--slh:${{ thin: 46, standard: 58, thick: 72 }[c.slider_size] || 58}px`,
+      `--title:${{ small: '17px', medium: '21px', large: '24px', extra_large: '28px' }[c.title_size] || '24px'}`,
+      `--bh:${c.size === 'extra_large' ? 88 : 76}px`, `--br:${c.corners === 'extra_round' ? '22px' : c.corners === 'square' ? '6px' : '14px'}`,
+      `--slr:${c.corners === 'square' ? '8px' : c.corners === 'extra_round' ? '999px' : '18px'}`].join(';');
+    const LCc = L === 'bar' && (c.size || 'large') !== 'standard' ? ' LC' : '';
     let body = '';
     if (L.startsWith('bar')) {
       const tm = this._tmini(m);
-      const btns = L === 'bar_pill'
+      const big = (c.size || 'large') !== 'standard' && L === 'bar';
+      const btns = big
+        ? `<div class="pw" style="--n:${c.show_stop ? 3 : 2}"><button class="pbtn c" data-cmd="close"><ha-icon icon="mdi:window-shutter"></ha-icon><span>${esc(c.close_word)}</span></button>${c.show_stop ? '<button class="pbtn s" data-cmd="stop"><ha-icon icon="mdi:pause"></ha-icon><span>Stop</span></button>' : ''}<button class="pbtn o" data-cmd="open"><ha-icon icon="mdi:window-shutter-open"></ha-icon><span>${esc(c.open_word)}</span></button></div>`
+        : L === 'bar_pill'
         ? `<div class="seg"><button data-cmd="close" aria-label="Close"><ha-icon icon="mdi:arrow-down"></ha-icon></button><button class="mid" data-cmd="stop" aria-label="Stop" data-pct></button><button data-cmd="open" aria-label="Open"><ha-icon icon="mdi:arrow-up"></ha-icon></button></div>`
         : `<div class="mini"><button class="btn" data-cmd="close" aria-label="Close"><ha-icon icon="mdi:arrow-down"></ha-icon></button>${c.show_stop ? '<button class="btn ghost" data-cmd="stop" aria-label="Stop"><ha-icon icon="mdi:stop"></ha-icon></button>' : ''}<button class="btn" data-cmd="open" aria-label="Open"><ha-icon icon="mdi:arrow-up"></ha-icon></button></div>`;
       const inner = m.shades.length > 1 && c.show_individual ? this._individual(m) : this._hslider(m.master || 'all', m.shades.length === 1 ? nameOf(this._hass, m.shades[0]) : 'All shades');
@@ -487,7 +530,7 @@ class OneStopShadesCard extends HTMLElement {
         <div class="row1"><div class="ricon"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
         <div class="title" data-toggle role="button" aria-expanded="${this._expanded}" ${(c.size || 'large') !== 'standard' && !(m.shades.length > 1 && c.show_individual) && !c.show_presets && !c.show_schedule ? 'data-nochev' : ''}><div class="name"><span>${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
         ${tm}${btns}</div>
-        <div class="bigs">${this._hslider(m.master || 'all', m.shades.length > 1 ? 'All shades' : 'Shade')}</div>
+        <div class="bigs">${this._hslider(m.master || 'all', m.shades.length > 1 ? 'All shades' : 'Shade', '', 'mdi:roller-shade')}</div>
         <div class="more ${this._expanded ? '' : 'hide'}" data-more>${(c.size || 'large') === 'standard' ? inner : (m.shades.length > 1 && c.show_individual ? this._individual(m) : '')}${this._presets()}${this._sched()}</div>`;
     } else if (L === 'slide') {
       body = `<div class="hs big" data-slide="${esc(m.master || 'all')}" data-axis="x"><div class="f"></div></div>
@@ -512,7 +555,7 @@ class OneStopShadesCard extends HTMLElement {
       body = `${this._head(m)}<div class="cgrid"><div class="left"><div class="gauge" data-gauge><div class="in"><b data-pct></b><span data-sub></span></div></div>${this._buttons(3)}${this._presets()}</div>
         <div class="left"><div class="cols" style="--cn:${Math.min(cols.length, 4)}">${cols.map(id => `<div class="col"><div class="vs" data-slide="${esc(id)}" data-axis="y"><div class="f"></div><div class="l" data-pct-of="${esc(id)}"></div></div><div class="cn">${esc(cols.length > 1 ? nameOf(this._hass, id) : 'All shades')}</div></div>`).join('')}</div>${this._sched()}</div></div>`;
     }
-    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB S-' + (c.size || 'large') : ''} ${this._expanded ? 'exp' : ''}" style="${vars}">${body}</ha-card>`;
+    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB S-' + (c.size || 'large') : ''}${LCc}${LCc && c.show_icon === false ? ' noicon' : ''} ${this._expanded ? 'exp' : ''}" style="${vars};${lcVars}">${body}</ha-card>`;
     this._wire();
     this._built = true;
     this._update();
@@ -551,7 +594,7 @@ class OneStopShadesCard extends HTMLElement {
     const h = this._hass, R = this.shadowRoot; if (!h || !this._built) return;
     const m = this._model(), c = this._cfg;
     const card = R.querySelector('ha-card'); if (!card) return;
-    card.classList.toggle('open', (m.mpos || 0) > 0);
+    card.classList.toggle('open', (m.mpos || 0) > 0 && c.open_glow !== 'off');
     const mst = m.master ? h.states[m.master] : m.shades.length ? h.states[m.shades[0]] : null;
     const word = m.moving ? (h.states[m.master]?.state === 'closing' ? 'Closing…' : 'Opening…') : m.mpos == null ? '—' : m.mpos === 0 ? 'Closed' : m.mpos === 100 ? 'Open' : `${m.mpos}% open`;
     R.querySelectorAll('[data-sub]').forEach(e => { e.textContent = word; });
@@ -566,6 +609,8 @@ class OneStopShadesCard extends HTMLElement {
     const anyDrag = [...R.querySelectorAll('[data-slide]')].some(e => e._drag);
     if (!anyDrag) R.querySelectorAll('.big[data-pct], .pct[data-pct], .in [data-pct]').forEach(e => { e.textContent = m.mpos == null ? '—' : m.mpos + '%'; });
     card.style.setProperty('--p', (m.mpos || 0) + '%');
+    { const g = { subtle: [.06, .16], normal: [.12, .30], strong: [.2, .45] }[c.open_glow] || [.12, .30], f = (m.mpos || 0) / 100;
+      card.style.setProperty('--ga', (g[0] + (g[1] - g[0]) * f).toFixed(3)); card.style.setProperty('--gb', (.22 + .2 * f).toFixed(3)); }
     R.querySelectorAll('.seg .mid[data-pct]').forEach(e => { e.textContent = m.moving ? '■' : m.mpos == null ? '—' : m.mpos + '%'; e.style.setProperty('--p', (m.mpos || 0) + '%'); });
     const tmT = R.querySelector('[data-tm=t]'), tmH = R.querySelector('[data-tm=h]');
     const fmt0 = (id, unit) => { const st = h.states[id]; if (!live(st)) return '—'; const v = parseFloat(st.state); return Number.isFinite(v) ? (Math.round(v * 10) / 10) + (unit || st.attributes.unit_of_measurement || '') : st.state; };
@@ -633,6 +678,13 @@ const schema = d => {
     ]),
     section('g_look', 'Look and words', 'mdi:palette-outline', [grid([
       { name: 'fill_color', selector: { color_rgb: {} } },
+      { name: 'show_icon', selector: toggle },
+      { name: 'button_style', selector: sel([['tinted', 'Tinted'], ['solid', 'Solid'], ['outline', 'Outline'], ['glass', 'Glass']]) },
+      { name: 'slider_size', selector: sel([['thin', 'Thin'], ['standard', 'Standard'], ['thick', 'Thick']]) },
+      { name: 'open_glow', selector: sel([['off', 'No glow'], ['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
+      { name: 'on_color', selector: { color_rgb: {} } }, { name: 'off_color', selector: { color_rgb: {} } },
+      { name: 'button_tint', selector: sel([['very_soft', 'Very soft'], ['soft', 'Soft'], ['medium', 'Medium'], ['bold', 'Bold']]) },
+      { name: 'title_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
       { name: 'corners', selector: sel([['square', 'Square'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
       { name: 'card_spacing', selector: sel([['compact', 'Compact'], ['standard', 'Standard'], ['roomy', 'Roomy']]) },
       { name: 'open_word', selector: { text: {} } }, { name: 'close_word', selector: { text: {} } },
@@ -647,7 +699,7 @@ const LABELS = {
   temperature_sensor: 'Temperature sensor', humidity_sensor: 'Humidity sensor',
   preset_1: 'Button 1', preset_2: 'Button 2', preset_3: 'Button 3',
   schedule_automations: 'Only use these automations for the times',
-  fill_color: 'Slider colour', corners: 'Card corners', card_spacing: 'Spacing inside the card', open_word: 'Open button words', close_word: 'Close button words',
+  fill_color: 'Glow and slider colour', open_glow: 'Glow when shades are open', show_icon: 'Show room icon', button_style: 'Button style', slider_size: 'Slider size', on_color: 'Open button colour', off_color: 'Close button colour', button_tint: 'Button colour strength', title_size: 'Title size', corners: 'Card corners', card_spacing: 'Spacing inside the card', open_word: 'Open button words', close_word: 'Close button words',
 };
 const HELPERS = {
   name: 'Leave empty to use the room’s name.',
