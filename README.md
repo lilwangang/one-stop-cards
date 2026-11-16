@@ -28,6 +28,9 @@ A room's shades with six layouts to choose from — three compact (Slim bar, Swi
 ### One Stop - Thermostat card
 Room temperature, what it's doing ("Heating to 21°"), mode buttons, set temperature (single or Heat + Cool range), fan (buttons, slider or list) and presets. The card glows orange while heating and blue while cooling. Lots of options in the visual editor, plus Master edit.
 
+### One Stop - Plex card
+A full Plex page for a room's TV: Now Playing with controls, Continue Watching, Recently Added movies and TV, and every library with search, sort and show → season → episode browsing. Tap a title for Resume / Start over / Next episode on that room's Apple TV. Uses the included `one_stop_plex_play` script pattern (see the card editor's "Which TV plays it").
+
 ## Install
 
 ### HACS (recommended)
