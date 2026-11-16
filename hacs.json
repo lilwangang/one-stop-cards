@@ -1,0 +1,6 @@
+{
+  "name": "One Stop Cards",
+  "filename": "one-stop-cards.js",
+  "render_readme": true,
+  "homeassistant": "2024.8.0"
+}
