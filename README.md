@@ -16,6 +16,15 @@ A room's lights in one card:
 
 Options in the editor include: which lights the On button controls, adding or leaving out lights, what to show, card spacing and corners, title size and colour, background when off, glow strength, button size/shape/colours/words/icons, white light choices, and what tap and press-and-hold do.
 
+### One Stop - Shades card
+A room's shades with six layouts to choose from — three compact (Slim bar, Swipe card, Tile) and three for tablets (Window, Control panel, Shade columns):
+
+- Drag to set the position, plus **Close / Stop / Open** and quick **25 / 50 / 75%** buttons
+- A slider for **each shade** in the room
+- Room **temperature and humidity**
+- **Open and close times** read straight from your automations (time and sunrise/sunset)
+- Finds the room's shades automatically; **Master edit** changes every Shades card at once
+
 ## Install
 
 ### HACS (recommended)
