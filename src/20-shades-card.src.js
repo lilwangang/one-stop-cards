@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -263,7 +263,8 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .SB{position:relative;overflow:hidden}
 .SB .row1{position:relative;z-index:1;display:flex;align-items:center;gap:10px}
 .SB .title{cursor:pointer}
-.SB .name{display:flex;align-items:center;gap:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.SB .name{display:flex;align-items:center;gap:2px}
+.SB .name>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:normal;word-break:normal}
 .SB .chev{flex:none;--mdc-icon-size:20px;opacity:.6;transition:transform .2s}
 .SB.exp .chev{transform:rotate(180deg)}
 .SB [data-nochev] .chev{display:none}
@@ -484,7 +485,7 @@ class OneStopShadesCard extends HTMLElement {
       const inner = m.shades.length > 1 && c.show_individual ? this._individual(m) : this._hslider(m.master || 'all', m.shades.length === 1 ? nameOf(this._hass, m.shades[0]) : 'All shades');
       body = `${L === 'bar_fill' ? '<div class="bgfill"></div>' : ''}${L === 'bar_line' ? '<div class="ptrack"></div><div class="pline"></div>' : ''}
         <div class="row1"><div class="ricon"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
-        <div class="title" data-toggle role="button" aria-expanded="${this._expanded}" ${(c.size || 'large') !== 'standard' && !(m.shades.length > 1 && c.show_individual) && !c.show_presets && !c.show_schedule ? 'data-nochev' : ''}><div class="name"><span style="overflow:hidden;text-overflow:ellipsis">${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
+        <div class="title" data-toggle role="button" aria-expanded="${this._expanded}" ${(c.size || 'large') !== 'standard' && !(m.shades.length > 1 && c.show_individual) && !c.show_presets && !c.show_schedule ? 'data-nochev' : ''}><div class="name"><span>${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
         ${tm}${btns}</div>
         <div class="bigs">${this._hslider(m.master || 'all', m.shades.length > 1 ? 'All shades' : 'Shade')}</div>
         <div class="more ${this._expanded ? '' : 'hide'}" data-more>${(c.size || 'large') === 'standard' ? inner : (m.shades.length > 1 && c.show_individual ? this._individual(m) : '')}${this._presets()}${this._sched()}</div>`;
