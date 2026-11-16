@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -22,7 +22,7 @@ const DEFAULTS = {
   button_size: 'large', button_shape: 'rounded', button_style: 'tinted', button_content: 'icon_words', button_text_size: 'medium', button_tint: 'soft',
   on_color: [35, 145, 86], off_color: [178, 52, 64], on_text: 'On', off_text: 'Off',
   on_icon: 'mdi:lightbulb-on', off_icon: 'mdi:lightbulb-off-outline',
-  slider_size: 'standard', slider_colour: 'lights',
+  slider_style: 'bubble', slider_size: 'standard', slider_colour: 'lights',
   chip_shape: 'circle', chip_size: 'medium',
   preset_1: '2000', preset_2: '3500', preset_3: '5000', preset_4: '6500', colour_count: '0',
   picture_size: 'medium', picture_on_phones: false,
@@ -144,6 +144,14 @@ input[type=range]::-moz-range-progress{height:var(--sl-t,12px);border-radius:999
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:var(--sl-th,32px);height:var(--sl-th,32px);border-radius:50%;margin-top:calc((var(--sl-t,12px) - var(--sl-th,32px)) / 2);background:var(--sl-c);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 input[type=range]::-moz-range-thumb{width:calc(var(--sl-th,32px) - 6px);height:calc(var(--sl-th,32px) - 6px);border-radius:50%;background:var(--sl-c);border:3px solid #fff}
 input[type=range]:disabled{opacity:.45;cursor:default}
+.dim.bubble{position:relative;display:block;height:var(--sl-bh,56px);border-radius:var(--sl-br,18px);overflow:hidden;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.dim.bubble .bfill{position:absolute;inset:0 auto 0 0;width:var(--pct,0%);background:var(--sl-c);opacity:.55;border-radius:inherit;transition:width .12s ease-out}
+.dim.bubble .blabel{position:absolute;inset:0;display:flex;align-items:center;gap:10px;padding:0 18px;pointer-events:none;font-weight:600;font-size:16px;color:#f7f9fc;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.dim.bubble .blabel ha-icon{--mdc-icon-size:24px}
+.dim.bubble .blabel .bpct{margin-left:auto;font-weight:650}
+.dim.bubble input[type=range]{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:ew-resize}
+.dim.bubble.nowords .btext{display:none}
+.dim.bubble:has(input:disabled){opacity:.45}
 .chip{all:unset;box-sizing:border-box;justify-self:center;width:calc(var(--chip,40px) + 20px);max-width:100%;height:calc(var(--chip,40px) + 20px);border-radius:var(--chip-r,50%);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .chip span{width:var(--chip,40px);height:var(--chip,40px);border-radius:var(--chip-r,50%);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.25)}
 .chip:focus-visible{outline:2px solid #fff}
@@ -209,6 +217,7 @@ class OneStopRoomLightsCard extends HTMLElement {
     const glow = pick({ subtle: [.13, .06, .2], normal: [.25, .12, .34], strong: [.42, .24, .5] }, c.on_glow, 'normal');
     const font = pick({ classic: 'Arial,Helvetica,sans-serif', theme: 'var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Roboto,sans-serif))', rounded: "ui-rounded,'SF Pro Rounded','Nunito','Varela Round',system-ui,sans-serif" }, c.font, 'classic');
     const slider = pick({ thin: [44, 6, 22], standard: [56, 12, 32], thick: [64, 20, 40] }, c.slider_size, 'standard');
+    const bubbleH = pick({ thin: 46, standard: 58, thick: 72 }, c.slider_size, 'standard');
     const chip = pick({ small: '32px', medium: '40px', large: '48px' }, c.chip_size, 'medium');
     const artH = pick({ small: '84px', medium: '112px', large: '150px' }, c.picture_size, 'medium');
     const onC = okRgb(c.on_color) ? c.on_color : DEFAULTS.on_color, offC = okRgb(c.off_color) ? c.off_color : DEFAULTS.off_color;
@@ -225,7 +234,7 @@ class OneStopRoomLightsCard extends HTMLElement {
       `--osl-on-bg:${onLook[0]}`, `--osl-on-border:${onLook[1]}`, `--osl-on-fg:${onLook[2]}`,
       `--osl-off-btn-bg:${offLook[0]}`, `--osl-off-border:${offLook[1]}`, `--osl-off-fg:${offLook[2]}`,
       `--osl-glow-a:${glow[0]}`, `--osl-glow-b:${glow[1]}`, `--osl-glow-border:${glow[2]}`, `--osl-off-bg:${offBg}`,
-      `--sl-h:${slider[0]}px`, `--sl-t:${slider[1]}px`, `--sl-th:${slider[2]}px`,
+      `--sl-h:${slider[0]}px`, `--sl-bh:${bubbleH}px`, `--sl-br:${c.corners === 'square' ? '8px' : c.corners === 'extra_round' ? '999px' : '18px'}`, `--sl-t:${slider[1]}px`, `--sl-th:${slider[2]}px`,
       `--sl-c:${c.slider_colour === 'custom' && okRgb(c.slider_custom_color) ? rgba(c.slider_custom_color, 1) : c.slider_colour === 'white' ? '#f2f5f9' : 'rgba(var(--osl-rgb),.95)'}`,
       `--chip:${chip}`, `--chip-r:${c.chip_shape === 'rounded' ? '30%' : '50%'}`, `--osl-art-h:${artH}`];
     if (okRgb(c.title_color) && !same(c.title_color, DEFAULTS.title_color)) vars.push(`--osl-title-color:${rgba(c.title_color, 1)}`);
@@ -259,8 +268,11 @@ class OneStopRoomLightsCard extends HTMLElement {
   </div>
   <div class="art ${pic ? '' : 'hide'} ${c.picture_on_phones ? 'phones' : ''}">${pic}</div>
   <div class="master ${c.show_brightness || chipCount ? '' : 'hide'}">
-   <div class="dim ${c.show_brightness ? '' : 'hide'}"><div class="dimhead ${c.show_brightness_words ? '' : 'hide'}"><span>Brightness</span><output></output></div>
-    <input type="range" min="0" max="100" step="1" aria-label="${esc(this._title())} brightness"></div>
+   ${c.slider_style === 'classic' ? `<div class="dim ${c.show_brightness ? '' : 'hide'}"><div class="dimhead ${c.show_brightness_words ? '' : 'hide'}"><span>Brightness</span><output></output></div>
+    <input type="range" min="0" max="100" step="1" aria-label="${esc(this._title())} brightness"></div>`
+    : `<div class="dim bubble ${c.show_brightness ? '' : 'hide'} ${c.show_brightness_words ? '' : 'nowords'}"><div class="bfill"></div>
+    <div class="blabel"><ha-icon icon="mdi:brightness-6"></ha-icon><span class="btext">Brightness</span><output class="bpct"></output></div>
+    <input type="range" min="0" max="100" step="1" aria-label="${esc(this._title())} brightness"></div>`}
    ${whites.map(k => `<button class="chip preset" data-k="${esc(k)}" title="${esc((PRESETS[k] || ['White'])[0])} · ${esc(k)} K" aria-label="${esc((PRESETS[k] || ['White'])[0])} ${esc(k)} kelvin"><span style="background:${(PRESETS[k] || [, '#ffe4ce'])[1]}"></span></button>`).join('')}
    ${colours.map(col => `<button class="chip fav" data-rgb="${col.join(',')}" title="Colour" aria-label="Set colour"><span style="background:${rgba(col, 1)}"></span></button>`).join('')}
    <button class="chip wheel ${c.show_wheel ? '' : 'hide'}" title="More colours" aria-label="More colours"><span></span></button>
@@ -268,7 +280,7 @@ class OneStopRoomLightsCard extends HTMLElement {
   </div>
  </div>
 </ha-card>`;
-    this._el = { card: R.querySelector('ha-card'), icon: R.querySelector('.icon ha-icon'), name: R.querySelector('.name'), status: R.querySelector('.status'), range: R.querySelector('input[type=range]'), out: R.querySelector('output'), msg: R.querySelector('.msg'), on: R.querySelector('[data-act=on]'), off: R.querySelector('[data-act=off]') };
+    this._el = { card: R.querySelector('ha-card'), icon: R.querySelector('.icon ha-icon'), name: R.querySelector('.name'), status: R.querySelector('.status'), range: R.querySelector('input[type=range]'), out: R.querySelector('output'), dim: R.querySelector('.dim'), msg: R.querySelector('.msg'), on: R.querySelector('[data-act=on]'), off: R.querySelector('[data-act=off]') };
     this._wire();
     this._built = true;
     this._update();
@@ -347,7 +359,7 @@ class OneStopRoomLightsCard extends HTMLElement {
     this.shadowRoot.querySelectorAll('.fav').forEach(b => { b.disabled = !colOk; });
     this.shadowRoot.querySelector('.wheel').disabled = !(colOk || tempOk);
   }
-  _paintRange(v) { this._el.range.style.setProperty('--pct', v + '%'); this._el.out.textContent = v + '%'; }
+  _paintRange(v) { this._el.range.style.setProperty('--pct', v + '%'); this._el.dim.style.setProperty('--pct', v + '%'); this._el.out.textContent = v + '%'; }
   _say(text) { this._el.msg.textContent = text || ''; if (text) setTimeout(() => { if (this._el.msg.textContent === text) this._el.msg.textContent = ''; }, 5000); }
   async _call(domain, service, data) {
     try { await this._hass.callService(domain, service, data); }
@@ -573,6 +585,7 @@ const schema = d => {
     { name: 'on_icon', selector: { icon: {} } }, { name: 'off_icon', selector: { icon: {} } },
   ])]),
   section('g_slider', 'Brightness slider', 'mdi:tune-variant', [grid([
+    { name: 'slider_style', selector: sel([['bubble', 'Bubble (big rounded bar)'], ['classic', 'Classic (thin bar with a knob)']]) },
     { name: 'slider_size', selector: sel([['thin', 'Thin'], ['standard', 'Standard'], ['thick', 'Thick']]) },
     { name: 'slider_colour', selector: sel([['lights', 'Match the lights'], ['white', 'White'], ['custom', 'My own colour']]) },
     ...(d.slider_colour === 'custom' ? [{ name: 'slider_custom_color', selector: { color_rgb: {} } }] : []),
@@ -614,7 +627,7 @@ const LABELS = {
   rule_active: 'Show the room as on when', extra_lights: 'Add lights from other rooms', hide_lights: 'Leave these lights out',
   wake_brightness: 'Brightness when a colour turns a light on',
   show_icon: 'Room icon', show_status: 'How many lights are on', show_buttons: 'On / Off buttons', show_picture: 'Room picture',
-  show_brightness: 'Brightness slider', show_brightness_words: 'Brightness words and %', show_presets: 'Light colour buttons', show_wheel: 'Colour wheel button',
+  show_brightness: 'Brightness slider', show_brightness_words: 'Brightness word and %', show_presets: 'Light colour buttons', show_wheel: 'Colour wheel button',
   button_position: 'Where the On / Off buttons go', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style',
   title_size: 'Title size', title_color: 'Title colour',
   off_background: 'Background when the lights are off', off_custom_color: 'Your background colour', on_glow: 'Glow when the lights are on', follow_light_colour: 'Glow matches the light colour',
@@ -623,7 +636,7 @@ const LABELS = {
   button_size: 'Button size', button_shape: 'Button shape', button_style: 'Button style', button_tint: 'Colour strength',
   button_content: 'What the buttons show', button_text_size: 'Button word size',
   on_color: 'On button colour', off_color: 'Off button colour', on_text: 'On button words', off_text: 'Off button words', on_icon: 'On button icon', off_icon: 'Off button icon',
-  slider_size: 'Slider thickness', slider_colour: 'Slider colour', slider_custom_color: 'Your slider colour',
+  slider_style: 'Slider style', slider_size: 'Slider thickness', slider_colour: 'Slider colour', slider_custom_color: 'Your slider colour',
   chip_shape: 'Button shape', chip_size: 'Button size',
   preset_1: 'White button 1', preset_2: 'White button 2', preset_3: 'White button 3', preset_4: 'White button 4',
   colour_count: 'Extra colour buttons', colour_1: 'Colour button 1', colour_2: 'Colour button 2', colour_3: 'Colour button 3',
