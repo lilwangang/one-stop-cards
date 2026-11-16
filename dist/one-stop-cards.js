@@ -240,7 +240,7 @@ class OneStopRoomLightsCard extends HTMLElement {
   }
   get hass() { return this._hass; }
   getCardSize() { return 6; }
-  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
+  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
 
   _areaName() { const a = this._hass?.areas?.[this._cfg.area]; return a?.name || titleCase(this._cfg.area); }
   _icon() {
@@ -900,7 +900,7 @@ window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Share
  */
 (() => {
 'use strict';
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -1233,7 +1233,7 @@ class OneStopShadesCard extends HTMLElement {
     if (!this._built) this._render(); else this._update();
   }
   getCardSize() { return ['bar', 'slide', 'tile'].includes(this._cfg?.layout) ? 3 : 7; }
-  getGridOptions() { return ['bar', 'slide', 'tile'].includes(this._cfg?.layout) ? { columns: this._cfg.layout === 'tile' ? 6 : 12, rows: 'auto', min_columns: 4 } : { columns: 12, rows: 'auto', min_columns: 6 }; }
+  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
 
   _areaName() { return this._hass?.areas?.[this._cfg.area]?.name || titleCase(this._cfg.area); }
   _title() { return this._cfg.name || this._areaName(); }

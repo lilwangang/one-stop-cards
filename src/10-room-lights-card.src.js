@@ -240,7 +240,7 @@ class OneStopRoomLightsCard extends HTMLElement {
   }
   get hass() { return this._hass; }
   getCardSize() { return 6; }
-  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
+  getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
 
   _areaName() { const a = this._hass?.areas?.[this._cfg.area]; return a?.name || titleCase(this._cfg.area); }
   _icon() {
