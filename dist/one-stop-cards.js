@@ -900,12 +900,12 @@ window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Share
  */
 (() => {
 'use strict';
-const VERSION = '1.0.2';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
 const LAYOUTS = {
-  bar: 'Compact · Slim bar', slide: 'Compact · Swipe card', tile: 'Compact · Tile',
+  bar: 'Slim bar', bar_line: 'Slim bar · Position line', bar_fill: 'Slim bar · Filled', bar_pill: 'Slim bar · One-piece buttons', slide: 'Compact · Swipe card', tile: 'Compact · Tile',
   window: 'Tablet · Window', panel: 'Tablet · Control panel', columns: 'Tablet · Shade columns',
 };
 const DEFAULTS = {
@@ -915,6 +915,11 @@ const DEFAULTS = {
 };
 const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'layout', 'master_shade', 'extra_shades', 'hide_shades', 'temperature_sensor', 'humidity_sensor', 'schedule_automations'];
 const SKIP_CLASSES = ['garage', 'door', 'gate', 'damper'];
+const shortName = (hass, id, area) => {
+  let n = nameOf(hass, id); const a = hass.areas?.[area]?.name;
+  if (a) { const re = new RegExp('^' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[-–:]?\\s*', 'i'); const t = n.replace(re, ''); if (t) n = t; }
+  return n.charAt(0).toUpperCase() + n.slice(1);
+};
 
 /* ---------------- helpers ---------------- */
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -1148,6 +1153,30 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .L-bar .mini .btn{width:48px;height:48px;padding:0}
 .L-bar .more{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .L-bar .hs{--h:52px}
+
+/* ---- slim bar family ---- */
+.SB{position:relative;overflow:hidden}
+.SB .row1{position:relative;z-index:1;display:flex;align-items:center;gap:10px}
+.SB .title{cursor:pointer}
+.SB .name{display:flex;align-items:center;gap:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.SB .chev{flex:none;--mdc-icon-size:20px;opacity:.6;transition:transform .2s}
+.SB.exp .chev{transform:rotate(180deg)}
+.SB .tmini{flex:none;text-align:right;font-size:13px;line-height:16px;color:rgba(235,241,248,.85);white-space:nowrap}
+.SB .tmini b{display:block;font-size:15px;font-weight:650;color:#f7f9fc}
+.SB .mini{display:flex;gap:6px;flex:none}
+.SB .mini .btn{width:46px;height:46px;padding:0}
+.SB .more{position:relative;z-index:1;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.SB .more .hs{--h:52px}
+.L-bar_line .pline{position:absolute;left:0;bottom:0;height:5px;width:var(--p,0%);background:rgb(var(--fill));box-shadow:0 0 10px rgba(var(--fill),.8);transition:width .3s}
+.L-bar_line .ptrack{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(255,255,255,.08)}
+.L-bar_fill .bgfill{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:linear-gradient(90deg,rgba(var(--fill),.42),rgba(var(--fill),.62));transition:width .3s}
+.L-bar_fill .mini .btn{background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.25)}
+.L-bar_pill .seg{flex:none;display:flex;align-items:stretch;height:46px;border-radius:999px;overflow:hidden;background:#334b65;border:1px solid #7796b5;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 2px 5px rgba(0,0,0,.22)}
+.L-bar_pill .seg button{display:flex;align-items:center;justify-content:center;width:46px}
+.L-bar_pill .seg button ha-icon{--mdc-icon-size:22px}
+.L-bar_pill .seg .mid{width:auto;min-width:62px;padding:0 6px;font-weight:700;font-size:16px;border-left:1px solid rgba(255,255,255,.18);border-right:1px solid rgba(255,255,255,.18);background:linear-gradient(90deg,rgba(var(--fill),.55) var(--p,0%),transparent var(--p,0%))}
+@container oss (max-width:400px){.SB .row1{gap:8px}.SB .ricon{width:38px;height:38px;border-radius:12px}.SB .ricon ha-icon{--mdc-icon-size:24px}.SB .mini{gap:4px}.SB .mini .btn{width:40px;height:40px;border-radius:13px}.SB .mini .btn ha-icon{--mdc-icon-size:20px}.SB .name{font-size:18px}.SB .tmini{font-size:12px;line-height:14px}.SB .tmini b{font-size:14px}.L-bar_pill .seg{height:42px}.L-bar_pill .seg button{width:38px}.L-bar_pill .seg .mid{min-width:52px;font-size:15px}}
+@container oss (max-width:330px){.SB .tmini span{display:none}}
 /* ---- layout: slide ---- */
 .L-slide{padding:0!important}
 .L-slide .big{--h:100%;position:relative;border-radius:inherit;border:0;min-height:132px;background:transparent}
@@ -1232,7 +1261,7 @@ class OneStopShadesCard extends HTMLElement {
     if (first) { Shared.get(hass); if (this._cfg.show_schedule) Schedules.load(hass).then(() => this._update()); }
     if (!this._built) this._render(); else this._update();
   }
-  getCardSize() { return ['bar', 'slide', 'tile'].includes(this._cfg?.layout) ? 3 : 7; }
+  getCardSize() { return /^bar|slide|tile/.test(this._cfg?.layout || '') ? 2 : 7; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
 
   _areaName() { return this._hass?.areas?.[this._cfg.area]?.name || titleCase(this._cfg.area); }
@@ -1259,6 +1288,10 @@ class OneStopShadesCard extends HTMLElement {
     if (m.hum) out.push(`<span class="chip h" data-chip="h"><ha-icon icon="mdi:water-percent"></ha-icon><span>${esc(fmt(m.hum, '%'))}</span></span>`);
     return out.length ? `<div class="chips">${out.join('')}</div>` : '';
   }
+  _tmini(m) {
+    if (!this._cfg.show_climate || (!m.temp && !m.hum)) return '';
+    return `<div class="tmini">${m.temp ? '<b data-tm="t"></b>' : ''}${m.hum ? '<span data-tm="h"></span>' : ''}</div>`;
+  }
   _head(m, sub = true, extra = '') {
     return `<div class="head"><div class="ricon"><ha-icon icon="${esc(this._cfg.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
       <div class="title"><div class="name">${esc(this._title())}</div>${sub ? '<div class="sub" data-sub></div>' : ''}</div>${extra}${this._chips(m)}</div>`;
@@ -1280,7 +1313,7 @@ class OneStopShadesCard extends HTMLElement {
     if (!m.shades.length) return '';
     return m.shades.map(id => kind === 'v'
       ? `<div class="col"><div class="vs" data-slide="${esc(id)}" data-axis="y"><div class="f"></div><div class="l" data-pct></div></div><div class="cn">${esc(nameOf(this._hass, id))}</div></div>`
-      : this._hslider(id, nameOf(this._hass, id))).join('');
+      : this._hslider(id, shortName(this._hass, id, this._cfg.area))).join('');
   }
   _sched() { return this._cfg.show_schedule ? `<div class="sect" data-sched></div>` : ''; }
 
@@ -1294,11 +1327,17 @@ class OneStopShadesCard extends HTMLElement {
       `--pad:${{ compact: '12px', standard: '18px', roomy: '24px' }[c.card_spacing] || '18px'}`].join(';');
     const L = c.layout in LAYOUTS ? c.layout : 'panel';
     let body = '';
-    if (L === 'bar') {
-      body = `<div class="row1"><div class="ricon"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
-        <div class="title" data-toggle style="cursor:pointer"><div class="name">${esc(this._title())}</div><div class="sub" data-sub></div></div>
-        <div class="mini"><button class="btn" data-cmd="close" aria-label="Close"><ha-icon icon="mdi:arrow-down"></ha-icon></button>${c.show_stop ? '<button class="btn ghost" data-cmd="stop" aria-label="Stop"><ha-icon icon="mdi:stop"></ha-icon></button>' : ''}<button class="btn" data-cmd="open" aria-label="Open"><ha-icon icon="mdi:arrow-up"></ha-icon></button></div></div>
-        <div class="more ${this._expanded ? '' : 'hide'}" data-more>${this._chips(m)}${this._hslider(m.master || 'all', 'All shades')}${this._individual(m)}${this._presets()}${this._sched()}</div>`;
+    if (L.startsWith('bar')) {
+      const tm = this._tmini(m);
+      const btns = L === 'bar_pill'
+        ? `<div class="seg"><button data-cmd="close" aria-label="Close"><ha-icon icon="mdi:arrow-down"></ha-icon></button><button class="mid" data-cmd="stop" aria-label="Stop" data-pct></button><button data-cmd="open" aria-label="Open"><ha-icon icon="mdi:arrow-up"></ha-icon></button></div>`
+        : `<div class="mini"><button class="btn" data-cmd="close" aria-label="Close"><ha-icon icon="mdi:arrow-down"></ha-icon></button>${c.show_stop ? '<button class="btn ghost" data-cmd="stop" aria-label="Stop"><ha-icon icon="mdi:stop"></ha-icon></button>' : ''}<button class="btn" data-cmd="open" aria-label="Open"><ha-icon icon="mdi:arrow-up"></ha-icon></button></div>`;
+      const inner = m.shades.length > 1 && c.show_individual ? this._individual(m) : this._hslider(m.master || 'all', m.shades.length === 1 ? nameOf(this._hass, m.shades[0]) : 'All shades');
+      body = `${L === 'bar_fill' ? '<div class="bgfill"></div>' : ''}${L === 'bar_line' ? '<div class="ptrack"></div><div class="pline"></div>' : ''}
+        <div class="row1"><div class="ricon"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>
+        <div class="title" data-toggle role="button" aria-expanded="${this._expanded}"><div class="name"><span style="overflow:hidden;text-overflow:ellipsis">${esc(this._title())}</span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></div><div class="sub" data-sub></div></div>
+        ${tm}${btns}</div>
+        <div class="more ${this._expanded ? '' : 'hide'}" data-more>${inner}${this._presets()}${this._sched()}</div>`;
     } else if (L === 'slide') {
       body = `<div class="hs big" data-slide="${esc(m.master || 'all')}" data-axis="x"><div class="f"></div></div>
         <div class="over">${this._head(m, false)}<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="pct" data-pct></div><div class="sub" data-sub></div></div>
@@ -1322,7 +1361,7 @@ class OneStopShadesCard extends HTMLElement {
       body = `${this._head(m)}<div class="cgrid"><div class="left"><div class="gauge" data-gauge><div class="in"><b data-pct></b><span data-sub></span></div></div>${this._buttons(3)}${this._presets()}</div>
         <div class="left"><div class="cols" style="--cn:${Math.min(cols.length, 4)}">${cols.map(id => `<div class="col"><div class="vs" data-slide="${esc(id)}" data-axis="y"><div class="f"></div><div class="l" data-pct-of="${esc(id)}"></div></div><div class="cn">${esc(cols.length > 1 ? nameOf(this._hass, id) : 'All shades')}</div></div>`).join('')}</div>${this._sched()}</div></div>`;
     }
-    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L}" style="${vars}">${body}</ha-card>`;
+    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB' : ''} ${this._expanded ? 'exp' : ''}" style="${vars}">${body}</ha-card>`;
     this._wire();
     this._built = true;
     this._update();
@@ -1332,7 +1371,7 @@ class OneStopShadesCard extends HTMLElement {
     const R = this.shadowRoot;
     R.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._cmd(b.dataset.cmd); }));
     R.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._setPos('all', +b.dataset.preset); }));
-    R.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._expanded = !this._expanded; R.querySelectorAll('[data-more]').forEach(x => x.classList.toggle('hide', !this._expanded)); }));
+    R.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._expanded = !this._expanded; R.querySelectorAll('[data-more]').forEach(x => x.classList.toggle('hide', !this._expanded)); R.querySelector('ha-card')?.classList.toggle('exp', this._expanded); b.setAttribute?.('aria-expanded', this._expanded); }));
     R.querySelectorAll('[data-slide]').forEach(el => this._drag(el));
   }
   _drag(el) {
@@ -1375,6 +1414,11 @@ class OneStopShadesCard extends HTMLElement {
     }
     const anyDrag = [...R.querySelectorAll('[data-slide]')].some(e => e._drag);
     if (!anyDrag) R.querySelectorAll('.big[data-pct], .pct[data-pct], .in [data-pct]').forEach(e => { e.textContent = m.mpos == null ? '—' : m.mpos + '%'; });
+    card.style.setProperty('--p', (m.mpos || 0) + '%');
+    R.querySelectorAll('.seg .mid[data-pct]').forEach(e => { e.textContent = m.moving ? '■' : m.mpos == null ? '—' : m.mpos + '%'; e.style.setProperty('--p', (m.mpos || 0) + '%'); });
+    const tmT = R.querySelector('[data-tm=t]'), tmH = R.querySelector('[data-tm=h]');
+    const fmt0 = (id, unit) => { const st = h.states[id]; if (!live(st)) return '—'; const v = parseFloat(st.state); return Number.isFinite(v) ? (Math.round(v * 10) / 10) + (unit || st.attributes.unit_of_measurement || '') : st.state; };
+    if (tmT && m.temp) { const st = h.states[m.temp], v = parseFloat(st?.state); tmT.textContent = Number.isFinite(v) ? (Math.round(v * 10) / 10) + '°' : '—'; } if (tmH && m.hum) { const v = parseFloat(h.states[m.hum]?.state); tmH.textContent = Number.isFinite(v) ? Math.round(v) + '% RH' : '—'; }
     const gauge = R.querySelector('[data-gauge]'); if (gauge) gauge.style.setProperty('--deg', ((m.mpos || 0) * 3.6) + 'deg');
     const bar = R.querySelector('[data-bar]'); if (bar) bar.style.setProperty('--p', (m.mpos || 0) + '%');
     R.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('sel', +b.dataset.preset === m.mpos));
