@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.4.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -96,6 +96,42 @@ const onTargets = (hass, cfg, members) => masterLights(hass, cfg, members).filte
 const dimmableAll = (hass, ids) => ids.every(id => dimmable(hass.states[id]) || isGroup(hass.states[id]));
 const ruleSet = (hass, cfg, members, rule) => (rule === 'master' ? masterLights(hass, cfg, members) : members).filter(id => live(hass.states[id]));
 
+
+/* ---------------- shared house style (master edit) ----------------
+ * Stored once per Home Assistant in a hidden dashboard, so every Room Lights card
+ * (on any dashboard) follows it. Card-level settings still win. */
+const STYLE_DASH = 'one-stop-cards';
+const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'master_lights', 'on_lights', 'extra_lights', 'hide_lights', 'picture', 'picture_url', 'picture_caption', 'tap', 'tap_page', 'hold', 'hold_page', 'hover_color'];
+const Shared = {
+  data: null, loading: null, listeners: new Set(), subscribed: false,
+  get(hass) {
+    if (this.data) return Promise.resolve(this.data);
+    if (!this.loading) this.loading = this._fetch(hass).then(d => { this.data = d; this._subscribe(hass); return d; });
+    return this.loading;
+  },
+  async _fetch(hass) {
+    try { const cfg = await hass.callWS({ type: 'lovelace/config', url_path: STYLE_DASH, force: true }); return cfg?.one_stop || {}; }
+    catch (e) { return {}; }
+  },
+  _subscribe(hass) {
+    if (this.subscribed || !hass?.connection) return; this.subscribed = true;
+    hass.connection.subscribeEvents(async ev => {
+      if (ev?.data?.url_path !== STYLE_DASH) return;
+      this.data = await this._fetch(hass); this.listeners.forEach(fn => fn(this.data));
+    }, 'lovelace_updated').catch(() => {});
+  },
+  async save(hass, section, values) {
+    const list = await hass.callWS({ type: 'lovelace/dashboards/list' });
+    if (!list.some(d => d.url_path === STYLE_DASH))
+      await hass.callWS({ type: 'lovelace/dashboards/create', url_path: STYLE_DASH, title: 'One Stop Cards', icon: 'mdi:palette-swatch-outline', show_in_sidebar: false, require_admin: false, mode: 'storage' });
+    let cfg; try { cfg = await hass.callWS({ type: 'lovelace/config', url_path: STYLE_DASH, force: true }); } catch (e) { cfg = null; }
+    cfg = cfg && cfg.views ? cfg : { views: [{ title: 'One Stop Cards', cards: [{ type: 'markdown', content: '## One Stop Cards\nShared styles for One Stop cards live here. Change them from any card’s editor with **Master edit** turned on.' }] }] };
+    cfg.one_stop = { ...(cfg.one_stop || {}), [section]: values };
+    await hass.callWS({ type: 'lovelace/config/save', url_path: STYLE_DASH, config: cfg });
+    this.data = cfg.one_stop; this.listeners.forEach(fn => fn(this.data));
+  },
+};
+
 /* ---------------- styles ---------------- */
 const CARD_CSS = `
 :host{display:block;--osl-rgb:184,184,184}
@@ -178,12 +214,22 @@ class OneStopRoomLightsCard extends HTMLElement {
   }
   setConfig(config) {
     if (!config) throw new Error('Invalid configuration');
-    this._cfg = { ...DEFAULTS, ...config };
+    this._raw = { ...config };
+    this._merge();
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._built = false;
     if (this._hass) this._render();
   }
-  set hass(hass) { this._hass = hass; if (!this._built) this._render(); else this._update(); this._popup?.update(hass); }
+  _merge() { this._cfg = { ...DEFAULTS, ...((Shared.data || {}).room_lights || {}), ...this._raw }; }
+  connectedCallback() {
+    this._onShared = () => { this._merge(); this._built = false; if (this._hass) this._render(); };
+    Shared.listeners.add(this._onShared);
+  }
+  set hass(hass) {
+    const first = !this._hass; this._hass = hass;
+    if (first && !Shared.data) Shared.get(hass).then(() => this._onShared?.());
+    if (!this._built) this._render(); else this._update(); this._popup?.update(hass);
+  }
   get hass() { return this._hass; }
   getCardSize() { return 6; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 6 }; }
@@ -426,7 +472,7 @@ class OneStopRoomLightsCard extends HTMLElement {
     this._popup.update(this._hass);
     return this._popup;
   }
-  disconnectedCallback() { this._popup?.close(); }
+  disconnectedCallback() { this._popup?.close(); Shared.listeners.delete(this._onShared); }
 }
 
 /* ---------------- pop-up: individual lights + colour picker ---------------- */
@@ -628,6 +674,7 @@ const schema = d => {
   ];
 };
 const LABELS = {
+  edit_all: 'Master edit – change all Room Lights cards at once', reset_style: 'Use the shared style on this card (clear its own changes)',
   area: 'Room', name: 'Card title', room_icon: 'Room icon',
   master_lights: 'Master lights (what turns on when the room is off)', no_master: 'If no master lights are picked',
   rule_on: 'When you press On', on_brightness: 'Turn on at', on_brightness_pct: 'Brightness', on_white: 'Light colour when turned on',
@@ -662,39 +709,86 @@ const HELPERS = {
 
 class OneStopRoomLightsCardEditor extends HTMLElement {
   setConfig(config) { const c = { ...config }; if (c.on_lights && !c.master_lights) { c.master_lights = c.on_lights; } delete c.on_lights; this._config = c; this._render(); }
-  set hass(hass) { this._hass = hass; this._render(); }
+  set hass(hass) {
+    const first = !this._hass; this._hass = hass;
+    if (first) Shared.get(hass).then(() => this._render());
+    this._render();
+  }
+  _inherited() { return { ...DEFAULTS, ...((Shared.data || {}).room_lights || {}) }; }
+  _ownStyleKeys() { return Object.keys(this._config || {}).filter(k => !ROOM_KEYS.includes(k)); }
+  _clean(v) {
+    const out = {};
+    for (const [k, val] of Object.entries(v)) {
+      if (['type', 'edit_all', 'reset_style'].includes(k) || val === '' || val == null) continue;
+      if (Array.isArray(val) && !val.length && !okRgb(val)) continue;
+      if (k === 'off_custom_color' && v.off_background !== 'custom') continue;
+      if (k === 'icon_custom_color' && v.icon_color !== 'custom') continue;
+      if (k === 'slider_custom_color' && v.slider_colour !== 'custom') continue;
+      if (/^colour_[123]$/.test(k) && +k.slice(-1) > +(v.colour_count || 0)) continue;
+      if (k === 'picture_url' && v.picture !== 'custom') continue;
+      if (k === 'on_lights') continue;
+      if (k === 'on_brightness_pct' && v.on_brightness !== 'fixed') continue;
+      if (k === 'tap_page' && v.tap !== 'page') continue;
+      if (k === 'hold_page' && v.hold !== 'page') continue;
+      out[k] = val;
+    }
+    return out;
+  }
+  _emit(cfg) {
+    this._config = cfg; this._render();
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
+  }
+  _onChange(v) {
+    if (!!v.edit_all !== !!this._all) { this._all = !!v.edit_all; this._render(); return; }
+    const type = this._config.type || 'custom:' + TAG;
+    if (v.reset_style) {                                   // drop this card's own style changes
+      const cfg = { type }; for (const k of ROOM_KEYS) if (k in this._config && k !== 'type') cfg[k] = this._config[k];
+      return this._emit(cfg);
+    }
+    const clean = this._clean(v), inherited = this._inherited();
+    const cfg = { type };
+    for (const k of ROOM_KEYS) if (k !== 'type' && k in clean && !(k in DEFAULTS && same(clean[k], DEFAULTS[k]))) cfg[k] = clean[k];
+    if (this._all) {
+      const shared = {};
+      for (const [k, val] of Object.entries(clean)) if (!ROOM_KEYS.includes(k) && !(k in DEFAULTS && same(val, DEFAULTS[k]))) shared[k] = val;
+      const before = (Shared.data || {}).room_lights || {};
+      // keep any of this card's own changes that weren't touched now
+      for (const k of this._ownStyleKeys()) if (same(clean[k], this._lastShown?.[k])) cfg[k] = this._config[k];
+      for (const k of Object.keys(clean)) if (!ROOM_KEYS.includes(k) && !same(clean[k], this._lastShown?.[k])) delete cfg[k];
+      if (!same(shared, before)) {
+        Shared.data = { ...(Shared.data || {}), room_lights: shared };
+        clearTimeout(this._saveT);
+        this._saveT = setTimeout(() => Shared.save(this._hass, 'room_lights', shared).catch(e => { this._error = 'Couldn’t save the shared style: ' + (e?.message || e); this._render(); }), 500);
+        Shared.listeners.forEach(fn => fn(Shared.data));
+      }
+    } else {
+      for (const [k, val] of Object.entries(clean)) if (!ROOM_KEYS.includes(k) && !same(val, inherited[k])) cfg[k] = val;
+    }
+    this._emit(cfg);
+  }
   _render() {
     if (!this._config) return;
     if (!this._form) {
+      this._note = document.createElement('div');
+      this._note.style.cssText = 'margin:0 0 12px;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.4;background:rgba(var(--rgb-primary-color,3,169,244),.12)';
+      this.appendChild(this._note);
       this._form = document.createElement('ha-form');
       this._form.computeLabel = s => LABELS[s.name] ?? s.title ?? s.name;
       this._form.computeHelper = s => HELPERS[s.name];
-      this._form.addEventListener('value-changed', ev => {
-        ev.stopPropagation();
-        const v = ev.detail.value, out = { type: this._config.type || 'custom:' + TAG };
-        for (const [k, val] of Object.entries(v)) {
-          if (k === 'type' || val === '' || val == null) continue;
-          if (Array.isArray(val) && !val.length && !okRgb(val)) continue;
-          if (k in DEFAULTS && same(val, DEFAULTS[k])) continue;          // keep the saved settings short
-          if (k === 'off_custom_color' && v.off_background !== 'custom') continue;
-          if (k === 'icon_custom_color' && v.icon_color !== 'custom') continue;
-          if (k === 'slider_custom_color' && v.slider_colour !== 'custom') continue;
-          if (/^colour_[123]$/.test(k) && +k.slice(-1) > +(v.colour_count || 0)) continue;
-          if (k === 'picture_url' && v.picture !== 'custom') continue;
-          if (k === 'on_lights') continue;
-          if (k === 'on_brightness_pct' && v.on_brightness !== 'fixed') continue;
-          if (k === 'tap_page' && v.tap !== 'page') continue;
-          if (k === 'hold_page' && v.hold !== 'page') continue;
-          out[k] = val;
-        }
-        this._config = out; this._render();
-        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
-      });
+      this._form.addEventListener('value-changed', ev => { ev.stopPropagation(); this._onChange(ev.detail.value); });
       this.appendChild(this._form);
     }
-    const data = { ...DEFAULTS, ...this._config };
+    const inherited = this._inherited(), own = this._ownStyleKeys();
+    const room = Object.fromEntries(Object.entries(this._config).filter(([k]) => ROOM_KEYS.includes(k)));
+    const data = this._all ? { ...inherited, ...room } : { ...inherited, ...this._config };
+    data.edit_all = !!this._all; data.reset_style = false;
+    this._lastShown = data;
+    this._note.textContent = this._error || (this._all
+      ? 'Master edit is on: look and rule changes apply to every Room Lights card. Room, title, icon and lights still apply to this card only.'
+      : own.length ? `This card has ${own.length} setting${own.length > 1 ? 's' : ''} of its own; everything else follows the shared style.` : 'This card follows the shared style. Turn on Master edit to change every Room Lights card at once.');
+    const top = [{ name: 'edit_all', selector: { boolean: {} } }, ...(!this._all && own.length ? [{ name: 'reset_style', selector: { boolean: {} } }] : [])];
     this._form.hass = this._hass;
-    this._form.schema = schema(data);
+    this._form.schema = [...top, ...schema(data)];
     this._form.data = data;
   }
 }
@@ -705,5 +799,5 @@ if (!customElements.get(POPUP_TAG)) customElements.define(POPUP_TAG, OneStopRoom
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === TAG)) window.customCards.push({ type: TAG, name: 'One Stop - Room Lights card', description: 'A room’s lights in one card: On/Off, brightness, white light, colour and every light in a pop-up.', preview: true });
 console.info(`%c ONE STOP %c Room Lights card ${VERSION} `, 'background:#375374;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px', 'background:#e9eef5;color:#375374;border-radius:0 3px 3px 0;padding:2px 4px');
-window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION };
+window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Shared };
 })();
