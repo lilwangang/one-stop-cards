@@ -900,7 +900,7 @@ window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Share
  */
 (() => {
 'use strict';
-const VERSION = '1.4.1';
+const VERSION = '2.0.0';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -909,12 +909,22 @@ const LAYOUTS = {
   window: 'Tablet · Window', panel: 'Tablet · Control panel', columns: 'Tablet · Shade columns',
 };
 const DEFAULTS = {
-  layout: 'bar', show_climate: true, show_presets: true, show_schedule: true, show_individual: true, show_stop: true,
-  preset_1: 25, preset_2: 50, preset_3: 75, open_word: 'Open', close_word: 'Close',
-  corners: 'rounded', fill_color: [255, 183, 77], card_spacing: 'standard', size: 'large',
-  on_color: [35, 145, 86], off_color: [178, 52, 64], button_tint: 'soft', title_size: 'medium', open_glow: 'normal', button_style: 'tinted', slider_size: 'standard', show_icon: true,
+  layout: 'bar', size: 'large',
+  show_icon: true, show_status: true, show_climate: true, show_buttons: true, show_stop: true, show_slider: true, show_slider_words: true,
+  show_individual: true, show_presets: false, show_schedule: false,
+  button_position: 'auto', card_spacing: 'standard', corners: 'rounded', title_size: 'medium', font: 'classic', title_color: [247, 249, 252],
+  off_background: 'theme', off_custom_color: [40, 44, 52], open_glow: 'normal', glow_follows: true, fill_color: [255, 183, 77],
+  icon_color: 'glow', icon_custom_color: [255, 196, 120], icon_background: true, hover_color: [184, 184, 184], animations: true, haptics: true,
+  button_size: 'large', button_shape: 'rounded', button_style: 'glass', button_tint: 'soft', button_content: 'icon_words', button_text_size: 'medium',
+  open_color: [235, 241, 248], close_color: [235, 241, 248], stop_color: [235, 241, 248],
+  open_word: 'Open', close_word: 'Close', stop_word: 'Stop',
+  open_icon: 'mdi:window-shutter-open', close_icon: 'mdi:window-shutter', stop_icon: 'mdi:pause',
+  slider_size: 'standard', slider_colour: 'glow', slider_custom_color: [255, 179, 107], slider_icon: 'mdi:roller-shade',
+  preset_1: 25, preset_2: 50, preset_3: 75,
+  tap: 'expand', hold: 'more_info', open_look: 'glow',
 };
-const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'layout', 'master_shade', 'extra_shades', 'hide_shades', 'temperature_sensor', 'humidity_sensor', 'schedule_automations'];
+
+const ROOM_KEYS = ['type', 'area', 'name', 'room_icon', 'layout', 'master_shade', 'extra_shades', 'hide_shades', 'temperature_sensor', 'humidity_sensor', 'schedule_automations', 'tap', 'tap_page', 'hold', 'hold_page'];
 const SKIP_CLASSES = ['garage', 'door', 'gate', 'damper'];
 const shortName = (hass, id, area) => {
   let n = nameOf(hass, id); const a = hass.areas?.[area]?.name;
@@ -1252,6 +1262,58 @@ ha-card.SB.LC.open{background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(
 .SB.LC .hs .l ha-icon{--mdc-icon-size:24px}
 .SB.LC .hs .l b{margin-left:auto}
 .SB.LC .more{margin-top:12px;gap:8px}
+
+/* ================= One Stop shade bar (v2) ================= */
+ha-card.NB{padding:var(--pad,18px);font-family:var(--font,Arial,Helvetica,sans-serif);cursor:pointer;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.015)),var(--off-bg)}
+ha-card.NB.anim{transition:background .4s,border-color .4s,box-shadow .4s}
+ha-card.NB.open{background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.035) 48%,rgba(255,255,255,.075)),linear-gradient(rgba(var(--fill),var(--ga,.2)),rgba(var(--fill),calc(var(--ga,.2) * .5))),rgba(28,28,28,.62);
+  border-color:rgba(var(--fill),var(--gb,.34));box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(12px) saturate(1.15);-webkit-backdrop-filter:blur(12px) saturate(1.15)}
+@media (hover:hover){ha-card.NB:hover{border-color:var(--hover,rgba(var(--fill),.5))}}
+.NB .wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"i n t p" "s s s s" "x x x x";column-gap:12px;row-gap:12px;align-items:center}
+.NB .wrap.noicon{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"n t p" "s s s" "x x x"}
+.NB .wrap.below{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i n t" "p p p" "s s s" "x x x"}
+.NB .wrap.below.noicon{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n t" "p p" "s s" "x x"}
+.NB .ic{grid-area:i;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.NB .ic.bg{background:var(--ic-bg,rgba(var(--fill),.10))}
+.NB .ic ha-icon{--mdc-icon-size:34px;color:var(--ic-c,rgba(235,241,248,.7))}
+.NB.open .ic ha-icon{color:var(--ic-on,rgb(var(--fill)))}
+.NB .hd{grid-area:n;min-width:0;display:flex;flex-direction:column;gap:2px}
+.NB .nm{display:flex;align-items:center;gap:2px;font-weight:650;letter-spacing:-.4px;font-size:var(--title,21px);line-height:1.2;color:var(--title-c,#f7f9fc)}
+.NB .nm>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:normal}
+.NB .nm ha-icon{flex:none;--mdc-icon-size:20px;opacity:.6;transition:transform .2s}
+.NB.exp .nm ha-icon{transform:rotate(180deg)}
+.NB .st{font-size:14px;line-height:18px;color:rgba(235,241,248,.78)}
+.NB .tm{grid-area:t;text-align:right;font-size:14px;line-height:1.25;color:rgba(235,241,248,.85);white-space:nowrap}
+.NB .tm b{display:block;font-size:18px;font-weight:650;color:#f7f9fc}
+.NB .pw{grid-area:p;display:flex;gap:8px;justify-content:flex-end}
+.NB .pbtn{flex:0 0 auto;width:var(--btn,80px);height:var(--btn,80px);border-radius:var(--btn-r,14px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-weight:650;font-size:var(--btn-t,14px);line-height:1.2;box-shadow:inset 0 1px 0 rgba(255,255,255,.1);background:var(--b-bg);border:var(--b-bd);color:var(--b-fg);transition:transform .12s,filter .12s}
+.NB .pbtn ha-icon{--mdc-icon-size:calc(var(--btn,80px) * .42);color:var(--b-fg)}
+.NB .pbtn.icononly ha-icon{--mdc-icon-size:calc(var(--btn,80px) * .5)} .NB .pbtn.wordsonly{font-size:calc(var(--btn-t,14px) * 1.25)}
+.NB .wrap.below .pbtn{flex:1 1 0;width:auto;height:min(var(--btn,80px),76px)}
+.NB .wrap.below .pw{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr))}
+.NB .pbtn.o{--b-bg:var(--o-bg);--b-bd:var(--o-bd);--b-fg:var(--o-fg)}
+.NB .pbtn.c{--b-bg:var(--c-bg);--b-bd:var(--c-bd);--b-fg:var(--c-fg)}
+.NB .pbtn.s{--b-bg:var(--s-bg);--b-bd:var(--s-bd);--b-fg:var(--s-fg)}
+.NB .sl{grid-area:s}
+.NB .hs{--h:var(--slh,58px);--r:var(--slr,18px);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.05);cursor:ew-resize}
+.NB .hs .f{background:var(--sl-c,rgb(var(--fill)));opacity:.55;border-radius:inherit}
+.NB.anim .hs .f{transition:width .12s ease-out}
+.NB .hs .l{justify-content:flex-start;gap:10px;padding:0 18px;font-size:16px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.NB .hs .l ha-icon{--mdc-icon-size:24px}
+.NB .hs .l b{margin-left:auto}
+.NB .hs.nowords .l{display:none}
+.NB .xp{grid-area:x;display:flex;flex-direction:column;gap:8px;cursor:default}
+.NB .xp .hs{--h:calc(var(--slh,58px) - 4px)}
+.NB .presets .btn{height:44px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16)}
+.NB .presets .btn.sel{background:rgba(var(--fill),.35);border-color:rgba(var(--fill),.6)}
+.NB .xp:empty{display:none}
+.NB .wrap{position:relative;z-index:1}
+.NB .nbfill{position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);background:linear-gradient(90deg,rgba(var(--fill),calc(var(--ga,.2) * 1.4)),rgba(var(--fill),calc(var(--ga,.2) * 2)));pointer-events:none}
+.NB.anim .nbfill,.NB.anim .nbline{transition:width .4s ease}
+.NB .nbtrack{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(255,255,255,.08);pointer-events:none}
+.NB .nbline{position:absolute;left:0;bottom:0;height:5px;width:var(--p,0%);background:rgb(var(--fill));box-shadow:0 0 10px rgba(var(--fill),.8);pointer-events:none}
+ha-card.NB.open.look-fill,ha-card.NB.open.look-line{background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.015)),var(--off-bg)}
 /* ---- layout: slide ---- */
 .L-slide{padding:0!important}
 .L-slide .big{--h:100%;position:relative;border-radius:inherit;border:0;min-height:132px;background:transparent}
@@ -1325,7 +1387,9 @@ class OneStopShadesCard extends HTMLElement {
     this._built = false; this._expanded = this._expanded || false;
     if (this._hass) this._render();
   }
-  _merge() { Shared._readCache(); const rl = (Shared.data || {}).room_lights || {}, look = {}; for (const k of ['on_color', 'off_color', 'button_tint', 'title_size', 'corners', 'font', 'button_style', 'slider_size', 'show_icon']) if (k in rl) look[k] = rl[k]; this._cfg = { ...DEFAULTS, ...look, ...((Shared.data || {})[SECTION] || {}), ...this._raw }; }
+  _merge() { Shared._readCache(); const rl = (Shared.data || {}).room_lights || {}, look = {}; for (const k of ['corners', 'font', 'title_size', 'title_color', 'slider_size', 'show_icon', 'card_spacing', 'off_background', 'off_custom_color', 'animations', 'haptics', 'icon_background']) if (k in rl) look[k] = rl[k]; this._cfg = { ...DEFAULTS, ...look, ...((Shared.data || {})[SECTION] || {}), ...this._raw };
+    const legacy = { bar_fill: 'fill', bar_line: 'line', bar_pill: 'glow' }[this._cfg.layout];
+    if (legacy || !(this._cfg.layout in LAYOUTS)) { if (legacy && !('open_look' in this._raw)) this._cfg.open_look = legacy; this._cfg.layout = 'bar'; } }
   connectedCallback() {
     this._onShared = () => { const b = JSON.stringify(this._cfg); this._merge(); if (JSON.stringify(this._cfg) === b && this._built) return; this._built = false; if (this._hass) this._render(); };
     Shared.listeners.add(this._onShared);
@@ -1402,7 +1466,7 @@ class OneStopShadesCard extends HTMLElement {
       `--pad:${{ compact: '12px', standard: '18px', roomy: '24px' }[c.card_spacing] || '18px'}`].join(';');
     const L = c.layout in LAYOUTS ? c.layout : 'bar';
     const lift = (col, n) => col.map(v => Math.min(255, v + n)), tintA = { very_soft: .28, soft: .44, medium: .60, bold: .80 }[c.button_tint] || .44;
-    const onC = okRgb(c.on_color) ? c.on_color : DEFAULTS.on_color, offC = okRgb(c.off_color) ? c.off_color : DEFAULTS.off_color;
+    const onC = okRgb(c.on_color) ? c.on_color : [35, 145, 86], offC = okRgb(c.off_color) ? c.off_color : [178, 52, 64];
     const look = (col, a) => ({ tinted: [rgba(col, a), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc'], solid: [rgba(col, 1), `1px solid ${rgba(lift(col, 40), .9)}`, '#fff'],
       outline: ['transparent', `2px solid ${rgba(lift(col, 70), .95)}`, rgba(lift(col, 90), 1)], glass: ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', rgba(lift(col, 90), 1)] }[c.button_style] || [rgba(col, a), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc']);
     const oL = look(onC, tintA), cL = look(offC, tintA + .02);
@@ -1410,9 +1474,48 @@ class OneStopShadesCard extends HTMLElement {
       `--title:${{ small: '17px', medium: '21px', large: '24px', extra_large: '28px' }[c.title_size] || '24px'}`,
       `--bh:${c.size === 'extra_large' ? 88 : 76}px`, `--br:${c.corners === 'extra_round' ? '22px' : c.corners === 'square' ? '6px' : '14px'}`,
       `--slr:${c.corners === 'square' ? '8px' : c.corners === 'extra_round' ? '999px' : '18px'}`].join(';');
-    const LCc = L === 'bar' && (c.size || 'large') !== 'standard' ? ' LC' : '';
+    const LCc = '';
+    let nbVars = '', nbClass = '', autoCss = '';
+    if (L === 'bar') {
+      const btnPx = { small: 56, medium: 68, large: 80, extra_large: 96 }[c.button_size] || 80;
+      const tA = { very_soft: .28, soft: .44, medium: .60, bold: .80 }[c.button_tint] || .44;
+      const bl = col => { col = okRgb(col) ? col : [235, 241, 248]; return ({ tinted: [rgba(col, tA), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc'], solid: [rgba(col, 1), `1px solid ${rgba(lift(col, 40), .9)}`, (col[0] * .3 + col[1] * .59 + col[2] * .11) > 170 ? '#1b2430' : '#fff'],
+        outline: ['transparent', `2px solid ${rgba(lift(col, 70), .95)}`, rgba(lift(col, 90), 1)], glass: ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', rgba(lift(col, 90), 1)] }[c.button_style] || ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', '#f7f9fc']); };
+      const o = bl(c.open_color), cl = bl(c.close_color), st = bl(c.stop_color);
+      const offBg = { theme: 'var(--bubble-button-main-background-color,var(--bubble-main-background-color,var(--background-color-2,var(--ha-card-background,var(--card-background-color,var(--secondary-background-color))))))', darker: 'rgba(14,16,21,.50)', lighter: 'rgba(120,128,142,.30)', custom: okRgb(c.off_custom_color) ? rgba(c.off_custom_color, .55) : 'var(--secondary-background-color)' }[c.off_background] || 'var(--secondary-background-color)';
+      const font = { classic: 'Arial,Helvetica,sans-serif', theme: 'var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Roboto,sans-serif))', rounded: "ui-rounded,'SF Pro Rounded','Nunito','Varela Round',system-ui,sans-serif" }[c.font] || 'Arial,Helvetica,sans-serif';
+      const v = [`--o-bg:${o[0]}`, `--o-bd:${o[1]}`, `--o-fg:${o[2]}`, `--c-bg:${cl[0]}`, `--c-bd:${cl[1]}`, `--c-fg:${cl[2]}`, `--s-bg:${st[0]}`, `--s-bd:${st[1]}`, `--s-fg:${st[2]}`,
+        `--btn:${btnPx}px`, `--btn-r:${{ square: '6px', rounded: '14px', extra_round: '50%' }[c.button_shape] || '14px'}`, `--btn-t:${{ small: '12px', medium: '14px', large: '17px' }[c.button_text_size] || '14px'}`,
+        `--title:${{ small: '17px', medium: '21px', large: '24px', extra_large: '28px' }[c.title_size] || '21px'}`, `--font:${font}`, `--off-bg:${offBg}`,
+        `--slh:${{ thin: 46, standard: 58, thick: 72 }[c.slider_size] || 58}px`, `--slr:${c.corners === 'square' ? '8px' : c.corners === 'extra_round' ? '999px' : '18px'}`];
+      if (c.slider_colour === 'white') v.push('--sl-c:#f2f5f9'); else if (c.slider_colour === 'custom' && okRgb(c.slider_custom_color)) v.push(`--sl-c:${rgba(c.slider_custom_color, 1)}`);
+      if (okRgb(c.title_color) && !same(c.title_color, DEFAULTS.title_color)) v.push(`--title-c:${rgba(c.title_color, 1)}`);
+      if (okRgb(c.hover_color) && !same(c.hover_color, DEFAULTS.hover_color)) v.push(`--hover:${rgba(c.hover_color, .8)}`);
+      if (c.icon_color === 'white') v.push('--ic-c:#f2f5f9', '--ic-on:#f7f9fc'); else if (c.icon_color === 'custom' && okRgb(c.icon_custom_color)) v.push(`--ic-c:${rgba(c.icon_custom_color, .75)}`, `--ic-on:${rgba(c.icon_custom_color, 1)}`);
+      nbVars = v.join(';'); nbClass = ` NB look-${c.open_look || 'glow'}${c.animations ? ' anim' : ''}`;
+      if (c.button_position === 'auto' && c.show_buttons) {
+        const pad = { compact: 12, standard: 18, roomy: 24 }[c.card_spacing] || 18;
+        const need = (c.show_icon ? 56 : 0) + 150 + ((c.show_climate && (m.temp || m.hum)) ? 80 : 0) + (btnPx + 8) * (c.show_stop ? 3 : 2) + pad * 2;
+        autoCss = `<style>@container oss (max-width:${need}px){.NB .wrap{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i n t" "p p p" "s s s" "x x x"}.NB .wrap.noicon{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n t" "p p" "s s" "x x"}.NB .wrap .pbtn{flex:1 1 0;width:auto;height:min(var(--btn,80px),76px)}.NB .wrap .pw{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr))}}</style>`;
+      }
+    }
     let body = '';
-    if (L.startsWith('bar')) {
+    if (L === 'bar') {
+      const p = c.button_position, n = (c.show_stop ? 3 : 2);
+      const cont = c.button_content, kind = cont === 'icon' ? 'icononly' : cont === 'words' ? 'wordsonly' : '';
+      const B = (cmd, cls, word, icon) => `<button class="pbtn ${cls} ${kind}" data-cmd="${cmd}" aria-label="${esc(word)}">${cont !== 'words' ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}${cont !== 'icon' ? `<span>${esc(word)}</span>` : ''}</button>`;
+      const btns = c.show_buttons ? `<div class="pw" style="--n:${n}">${B('close', 'c', c.close_word, c.close_icon)}${c.show_stop ? B('stop', 's', c.stop_word, c.stop_icon) : ''}${B('open', 'o', c.open_word, c.open_icon)}</div>` : '';
+      const tm = this._tmini(m).replace('class="tmini"', 'class="tm"');
+      const canExpand = c.tap === 'expand' && ((m.shades.length > 1 && c.show_individual) || c.show_schedule);
+      const slider = c.show_slider ? `<div class="sl">${this._hslider(m.master || 'all', m.shades.length > 1 ? 'All shades' : 'Shade', c.show_slider_words ? '' : 'nowords', c.slider_icon)}</div>` : '';
+      const xp = `${c.show_presets ? this._presets() : ''}<div class="${this._expanded ? '' : 'hide'}" data-more style="display:flex;flex-direction:column;gap:8px">${m.shades.length > 1 && c.show_individual ? this._individual(m) : ''}${this._sched()}</div>`;
+      body = `<div class="wrap ${p === 'below' ? 'below' : ''} ${c.show_icon ? '' : 'noicon'}">
+        ${c.show_icon ? `<div class="ic ${c.icon_background ? 'bg' : ''}"><ha-icon icon="${esc(c.room_icon || 'mdi:roller-shade')}"></ha-icon></div>` : ''}
+        <div class="hd"><div class="nm"><span>${esc(this._title())}</span>${canExpand ? '<ha-icon icon="mdi:chevron-down"></ha-icon>' : ''}</div>${c.show_status ? '<div class="st" data-sub></div>' : ''}</div>
+        ${tm}${btns}${slider}<div class="xp">${xp}</div></div>`;
+      if (c.open_look === 'fill') body = `<div class="nbfill"></div>` + body;
+      if (c.open_look === 'line') body = `<div class="nbtrack"></div><div class="nbline"></div>` + body;
+    } else if (L.startsWith('bar')) {
       const tm = this._tmini(m);
       const big = (c.size || 'large') !== 'standard' && L === 'bar';
       const btns = big
@@ -1450,7 +1553,7 @@ class OneStopShadesCard extends HTMLElement {
       body = `${this._head(m)}<div class="cgrid"><div class="left"><div class="gauge" data-gauge><div class="in"><b data-pct></b><span data-sub></span></div></div>${this._buttons(3)}${this._presets()}</div>
         <div class="left"><div class="cols" style="--cn:${Math.min(cols.length, 4)}">${cols.map(id => `<div class="col"><div class="vs" data-slide="${esc(id)}" data-axis="y"><div class="f"></div><div class="l" data-pct-of="${esc(id)}"></div></div><div class="cn">${esc(cols.length > 1 ? nameOf(this._hass, id) : 'All shades')}</div></div>`).join('')}</div>${this._sched()}</div></div>`;
     }
-    R.innerHTML = `<style>${CSS}</style><ha-card class="L-${L} ${L.startsWith('bar') ? 'SB S-' + (c.size || 'large') : ''}${LCc}${LCc && c.show_icon === false ? ' noicon' : ''} ${this._expanded ? 'exp' : ''}" style="${vars};${lcVars}">${body}</ha-card>`;
+    R.innerHTML = `<style>${CSS}</style>${autoCss}<ha-card class="L-${L} ${L.startsWith('bar') && L !== 'bar' ? 'SB S-' + (c.size || 'large') : ''}${nbClass} ${this._expanded ? 'exp' : ''}" style="${vars};${L === 'bar' ? nbVars : lcVars}">${body}</ha-card>`;
     this._wire();
     this._built = true;
     this._update();
@@ -1462,6 +1565,14 @@ class OneStopShadesCard extends HTMLElement {
     R.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._setPos('all', +b.dataset.preset); }));
     R.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this._expanded = !this._expanded; R.querySelectorAll('[data-more]').forEach(x => x.classList.toggle('hide', !this._expanded)); R.querySelector('ha-card')?.classList.toggle('exp', this._expanded); b.setAttribute?.('aria-expanded', this._expanded); }));
     R.querySelectorAll('[data-slide]').forEach(el => this._drag(el));
+    const card = R.querySelector('ha-card.NB');
+    if (card) {
+      let t = null, held = false;
+      const inside = e => e.composedPath().some(n => n.classList && (n.classList.contains('pbtn') || n.classList.contains('hs') || n.classList.contains('xp') || n.localName === 'button'));
+      card.addEventListener('pointerdown', e => { if (inside(e)) return; held = false; clearTimeout(t); t = setTimeout(() => { held = true; this._act(this._cfg.hold, this._cfg.hold_page); }, 550); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => card.addEventListener(ev, () => clearTimeout(t)));
+      card.addEventListener('click', e => { if (inside(e) || held) return; this._act(this._cfg.tap, this._cfg.tap_page); });
+    }
   }
   _drag(el) {
     const id = el.dataset.slide, axis = el.dataset.axis;
@@ -1474,9 +1585,17 @@ class OneStopShadesCard extends HTMLElement {
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', () => { active = false; el._drag = false; el.classList.remove('moving'); });
   }
+  _buzz() { if (this._cfg.haptics) { try { navigator.vibrate?.(12); } catch (e) {} this.dispatchEvent(new CustomEvent('haptic', { detail: 'light', bubbles: true, composed: true })); } }
+  _act(what, page) {
+    if (!what || what === 'none') return; this._buzz();
+    if (what === 'expand') { const R = this.shadowRoot; this._expanded = !this._expanded; R.querySelectorAll('[data-more]').forEach(x => x.classList.toggle('hide', !this._expanded)); R.querySelector('ha-card')?.classList.toggle('exp', this._expanded); return; }
+    if (what === 'more_info') { const m = this._model(), id = m.master || m.shades[0]; if (id) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); return; }
+    if (what === 'page' && page) { history.pushState(null, '', page); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); }
+  }
   _ids(id) { const m = this._model(); return id === 'all' ? m.targets : [id]; }
   async _call(service, data) { try { await this._hass.callService('cover', service, data); } catch (e) { console.warn('One Stop Shades:', e?.message || e); } }
   _cmd(cmd) {
+    this._buzz();
     const t = this._ids('all').filter(id => live(this._hass.states[id])); if (!t.length) return;
     this._call({ open: 'open_cover', close: 'close_cover', stop: 'stop_cover' }[cmd], { entity_id: t });
   }
@@ -1504,7 +1623,7 @@ class OneStopShadesCard extends HTMLElement {
     const anyDrag = [...R.querySelectorAll('[data-slide]')].some(e => e._drag);
     if (!anyDrag) R.querySelectorAll('.big[data-pct], .pct[data-pct], .in [data-pct]').forEach(e => { e.textContent = m.mpos == null ? '—' : m.mpos + '%'; });
     card.style.setProperty('--p', (m.mpos || 0) + '%');
-    { const g = { subtle: [.06, .16], normal: [.12, .30], strong: [.2, .45] }[c.open_glow] || [.12, .30], f = (m.mpos || 0) / 100;
+    { const g = { subtle: [.06, .16], normal: [.12, .30], strong: [.2, .45] }[c.open_glow] || [.12, .30], f = c.glow_follows === false ? 1 : (m.mpos || 0) / 100;
       card.style.setProperty('--ga', (g[0] + (g[1] - g[0]) * f).toFixed(3)); card.style.setProperty('--gb', (.22 + .2 * f).toFixed(3)); }
     R.querySelectorAll('.seg .mid[data-pct]').forEach(e => { e.textContent = m.moving ? '■' : m.mpos == null ? '—' : m.mpos + '%'; e.style.setProperty('--p', (m.mpos || 0) + '%'); });
     const tmT = R.querySelector('[data-tm=t]'), tmH = R.querySelector('[data-tm=h]');
@@ -1546,61 +1665,108 @@ const pct = { number: { min: 5, max: 95, step: 5, mode: 'slider', unit_of_measur
 const schema = d => {
   const grid = items => ({ type: 'grid', name: '', flatten: true, schema: items });
   const section = (name, title, icon, items) => ({ name, type: 'expandable', flatten: true, title, icon, schema: items });
+  const size4 = sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]);
+  const action = sel([['expand', 'Show each shade (open the card)'], ['more_info', 'Open the shade controls pop-up'], ['page', 'Go to a page'], ['none', 'Do nothing']]);
   return [
     { name: 'area', selector: { area: {} } },
     grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
-    { name: 'layout', selector: sel(Object.entries(LAYOUTS).filter(([k]) => k.startsWith('bar') || k === d.layout)) },
-    { name: 'size', selector: sel([['standard', 'Standard'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
     section('g_shades', 'Which shades', 'mdi:roller-shade', [
       { name: 'master_shade', selector: { entity: { filter: { domain: 'cover' } } } },
       { name: 'extra_shades', selector: { entity: { multiple: true, filter: { domain: 'cover' } } } },
       { name: 'hide_shades', selector: { entity: { multiple: true, filter: { domain: 'cover' } } } },
     ]),
     section('g_show', 'What to show', 'mdi:eye-outline', [grid([
-      { name: 'show_climate', selector: toggle }, { name: 'show_individual', selector: toggle },
-      { name: 'show_presets', selector: toggle }, { name: 'show_stop', selector: toggle },
-      { name: 'show_schedule', selector: toggle },
+      { name: 'show_icon', selector: toggle }, { name: 'show_status', selector: toggle },
+      { name: 'show_climate', selector: toggle }, { name: 'show_buttons', selector: toggle },
+      { name: 'show_stop', selector: toggle }, { name: 'show_slider', selector: toggle },
+      { name: 'show_slider_words', selector: toggle }, { name: 'show_individual', selector: toggle },
+      { name: 'show_presets', selector: toggle }, { name: 'show_schedule', selector: toggle },
+    ])]),
+    section('g_layout', 'Layout and text', 'mdi:page-layout-header', [grid([
+      { name: 'button_position', selector: sel([['auto', 'Beside the title (moves under on small screens)'], ['beside', 'Always beside the title'], ['below', 'Always under the title']]) },
+      { name: 'card_spacing', selector: sel([['compact', 'Compact'], ['standard', 'Standard'], ['roomy', 'Roomy']]) },
+      { name: 'corners', selector: sel([['square', 'Square'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
+      { name: 'font', selector: sel([['classic', 'Classic'], ['theme', 'Same as Home Assistant'], ['rounded', 'Rounded']]) },
+      { name: 'title_size', selector: size4 },
+      { name: 'title_color', selector: { color_rgb: {} } },
+    ])]),
+    section('g_colours', 'Colours and glow', 'mdi:palette-outline', [grid([
+      { name: 'off_background', selector: sel([['theme', 'Clear frosted glass'], ['darker', 'Darker frosted glass'], ['lighter', 'Lighter frosted glass'], ['custom', 'Frosted glass in my own colour']]) },
+      ...(d.off_background === 'custom' ? [{ name: 'off_custom_color', selector: { color_rgb: {} } }] : []),
+      { name: 'open_look', selector: sel([['glow', 'Glow across the card'], ['fill', 'Card fills up as they open'], ['line', 'Glowing line along the bottom']]) },
+      { name: 'open_glow', selector: sel([['off', 'No glow'], ['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
+      { name: 'fill_color', selector: { color_rgb: {} } },
+      { name: 'glow_follows', selector: toggle },
+      { name: 'icon_color', selector: sel([['glow', 'Match the glow'], ['white', 'White'], ['custom', 'My own colour']]) },
+      ...(d.icon_color === 'custom' ? [{ name: 'icon_custom_color', selector: { color_rgb: {} } }] : []),
+      { name: 'icon_background', selector: toggle },
+      { name: 'hover_color', selector: { color_rgb: {} } },
+      { name: 'animations', selector: toggle },
+    ])]),
+    section('g_buttons', 'Open, Stop and Close buttons', 'mdi:gesture-tap-button', [grid([
+      { name: 'button_size', selector: size4 },
+      { name: 'button_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Circle']]) },
+      { name: 'button_style', selector: sel([['glass', 'Clear glass'], ['tinted', 'Soft colour'], ['solid', 'Solid colour'], ['outline', 'Outline']]) },
+      ...(d.button_style === 'tinted' ? [{ name: 'button_tint', selector: sel([['very_soft', 'Very soft'], ['soft', 'Soft'], ['medium', 'Medium'], ['bold', 'Bold']]) }] : []),
+      { name: 'button_content', selector: sel([['icon_words', 'Icon and words'], ['icon', 'Icon only'], ['words', 'Words only']]) },
+      { name: 'button_text_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]) },
+      { name: 'open_color', selector: { color_rgb: {} } }, { name: 'close_color', selector: { color_rgb: {} } },
+      { name: 'stop_color', selector: { color_rgb: {} } }, { name: 'stop_word', selector: { text: {} } },
+      { name: 'open_word', selector: { text: {} } }, { name: 'close_word', selector: { text: {} } },
+      { name: 'open_icon', selector: { icon: {} } }, { name: 'close_icon', selector: { icon: {} } },
+      { name: 'stop_icon', selector: { icon: {} } },
+    ])]),
+    section('g_slider', 'Position slider', 'mdi:tune-variant', [grid([
+      { name: 'slider_size', selector: sel([['thin', 'Thin'], ['standard', 'Standard'], ['thick', 'Thick']]) },
+      { name: 'slider_colour', selector: sel([['glow', 'Match the glow'], ['white', 'White'], ['custom', 'My own colour']]) },
+      ...(d.slider_colour === 'custom' ? [{ name: 'slider_custom_color', selector: { color_rgb: {} } }] : []),
+      { name: 'slider_icon', selector: { icon: {} } },
+    ])]),
+    section('g_presets', 'Quick position buttons', 'mdi:format-list-numbered', [grid([
+      { name: 'preset_1', selector: pct }, { name: 'preset_2', selector: pct }, { name: 'preset_3', selector: pct },
     ])]),
     section('g_climate', 'Temperature and humidity', 'mdi:thermometer', [
       { name: 'temperature_sensor', selector: { entity: { filter: { domain: 'sensor', device_class: 'temperature' } } } },
       { name: 'humidity_sensor', selector: { entity: { filter: { domain: 'sensor', device_class: 'humidity' } } } },
     ]),
-    section('g_presets', 'Quick position buttons', 'mdi:format-list-numbered', [grid([
-      { name: 'preset_1', selector: pct }, { name: 'preset_2', selector: pct }, { name: 'preset_3', selector: pct },
-    ])]),
-    section('g_schedule', 'Schedule', 'mdi:clock-outline', [
+    section('g_schedule', 'Open / close times', 'mdi:clock-outline', [
       { name: 'schedule_automations', selector: { entity: { multiple: true, filter: { domain: 'automation' } } } },
     ]),
-    section('g_look', 'Look and words', 'mdi:palette-outline', [grid([
-      { name: 'fill_color', selector: { color_rgb: {} } },
-      { name: 'show_icon', selector: toggle },
-      { name: 'button_style', selector: sel([['tinted', 'Tinted'], ['solid', 'Solid'], ['outline', 'Outline'], ['glass', 'Glass']]) },
-      { name: 'slider_size', selector: sel([['thin', 'Thin'], ['standard', 'Standard'], ['thick', 'Thick']]) },
-      { name: 'open_glow', selector: sel([['off', 'No glow'], ['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
-      { name: 'on_color', selector: { color_rgb: {} } }, { name: 'off_color', selector: { color_rgb: {} } },
-      { name: 'button_tint', selector: sel([['very_soft', 'Very soft'], ['soft', 'Soft'], ['medium', 'Medium'], ['bold', 'Bold']]) },
-      { name: 'title_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
-      { name: 'corners', selector: sel([['square', 'Square'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
-      { name: 'card_spacing', selector: sel([['compact', 'Compact'], ['standard', 'Standard'], ['roomy', 'Roomy']]) },
-      { name: 'open_word', selector: { text: {} } }, { name: 'close_word', selector: { text: {} } },
-    ])]),
+    section('g_actions', 'Tap and hold', 'mdi:gesture-tap', [
+      { name: 'tap', selector: action },
+      ...(d.tap === 'page' ? [{ name: 'tap_page', selector: { navigation: {} } }] : []),
+      { name: 'hold', selector: action },
+      ...(d.hold === 'page' ? [{ name: 'hold_page', selector: { navigation: {} } }] : []),
+      { name: 'haptics', selector: toggle },
+    ]),
   ];
 };
 const LABELS = {
   edit_all: 'Master edit – change all Shades cards at once', reset_style: 'Use the shared style on this card (clear its own changes)',
-  area: 'Room', name: 'Card title', room_icon: 'Room icon', layout: 'Layout', size: 'Size',
+  area: 'Room', name: 'Card title', room_icon: 'Room icon',
   master_shade: 'Main shade or shade group (controls them all)', extra_shades: 'Add shades from other rooms', hide_shades: 'Leave these shades out',
-  show_climate: 'Temperature & humidity', show_individual: 'Each shade’s own slider', show_presets: 'Quick position buttons', show_stop: 'Stop button', show_schedule: 'Open / close times',
-  temperature_sensor: 'Temperature sensor', humidity_sensor: 'Humidity sensor',
+  show_icon: 'Room icon', show_status: 'How open the shades are', show_climate: 'Temperature & humidity', show_buttons: 'Open / Stop / Close buttons',
+  show_stop: 'Stop button', show_slider: 'Position slider', show_slider_words: 'Slider words and %', show_individual: 'Each shade’s own slider (on tap)',
+  show_presets: 'Quick position buttons', show_schedule: 'Open / close times (on tap)',
+  button_position: 'Where the buttons go', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style', title_size: 'Title size', title_color: 'Title colour',
+  open_look: 'Look when the shades are open', off_background: 'Background when the shades are closed', off_custom_color: 'Your background colour', open_glow: 'Glow strength', fill_color: 'Glow colour',
+  glow_follows: 'Glow gets stronger the more they open', icon_color: 'Room icon colour', icon_custom_color: 'Your icon colour', icon_background: 'Shaded box behind the icon',
+  hover_color: 'Edge colour on mouse-over (grey = follow the glow)', animations: 'Gentle animations',
+  button_size: 'Button size', button_shape: 'Button shape', button_style: 'Button style', button_tint: 'Colour strength', button_content: 'What the buttons show', button_text_size: 'Button word size',
+  open_color: 'Open button colour', close_color: 'Close button colour', stop_color: 'Stop button colour',
+  open_word: 'Open button words', close_word: 'Close button words', stop_word: 'Stop button words',
+  open_icon: 'Open button icon', close_icon: 'Close button icon', stop_icon: 'Stop button icon',
+  slider_size: 'Slider thickness', slider_colour: 'Slider colour', slider_custom_color: 'Your slider colour', slider_icon: 'Slider icon',
   preset_1: 'Button 1', preset_2: 'Button 2', preset_3: 'Button 3',
-  schedule_automations: 'Only use these automations for the times',
-  fill_color: 'Glow and slider colour', open_glow: 'Glow when shades are open', show_icon: 'Show room icon', button_style: 'Button style', slider_size: 'Slider size', on_color: 'Open button colour', off_color: 'Close button colour', button_tint: 'Button colour strength', title_size: 'Title size', corners: 'Card corners', card_spacing: 'Spacing inside the card', open_word: 'Open button words', close_word: 'Close button words',
+  temperature_sensor: 'Temperature sensor', humidity_sensor: 'Humidity sensor', schedule_automations: 'Only use these automations for the times',
+  tap: 'When you tap the card', tap_page: 'Page to open on tap', hold: 'When you press and hold', hold_page: 'Page to open on hold', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
   name: 'Leave empty to use the room’s name.',
   master_shade: 'Leave empty to use the room’s shade group, or control each shade together.',
   temperature_sensor: 'Leave empty to pick one from the room automatically.',
   schedule_automations: 'Leave empty to find them automatically from your automations.',
+  open_color: 'Button colours only show with Soft colour, Solid colour or Outline styles.',
 };
 
 class OneStopShadesCardEditor extends HTMLElement {
@@ -1614,7 +1780,8 @@ class OneStopShadesCardEditor extends HTMLElement {
     const type = this._config.type || 'custom:' + TAG;
     if (v.reset_style) { const cfg = { type }; for (const k of ROOM_KEYS) if (k in this._config && k !== 'type') cfg[k] = this._config[k]; return this._emit(cfg); }
     const clean = {};
-    for (const [k, val] of Object.entries(v)) { if (['type', 'edit_all', 'reset_style'].includes(k) || val === '' || val == null) continue; if (Array.isArray(val) && !val.length && !okRgb(val)) continue; clean[k] = val; }
+    const dep = { off_custom_color: v.off_background === 'custom', icon_custom_color: v.icon_color === 'custom', slider_custom_color: v.slider_colour === 'custom', button_tint: v.button_style === 'tinted', tap_page: v.tap === 'page', hold_page: v.hold === 'page' };
+    for (const [k, val] of Object.entries(v)) { if (['type', 'edit_all', 'reset_style'].includes(k) || val === '' || val == null || dep[k] === false) continue; if (Array.isArray(val) && !val.length && !okRgb(val)) continue; clean[k] = val; }
     const inherited = this._inherited(), cfg = { type };
     for (const k of ROOM_KEYS) if (k !== 'type' && k in clean && !(k in DEFAULTS && same(clean[k], DEFAULTS[k]))) cfg[k] = clean[k];
     if (this._all) {
