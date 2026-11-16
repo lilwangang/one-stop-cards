@@ -900,7 +900,7 @@ window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Share
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -909,7 +909,7 @@ const LAYOUTS = {
   window: 'Tablet · Window', panel: 'Tablet · Control panel', columns: 'Tablet · Shade columns',
 };
 const DEFAULTS = {
-  layout: 'panel', show_climate: true, show_presets: true, show_schedule: true, show_individual: true, show_stop: true,
+  layout: 'bar', show_climate: true, show_presets: true, show_schedule: true, show_individual: true, show_stop: true,
   preset_1: 25, preset_2: 50, preset_3: 75, open_word: 'Open', close_word: 'Close',
   corners: 'rounded', fill_color: [36, 111, 168], card_spacing: 'standard', size: 'large',
 };
@@ -1369,7 +1369,7 @@ class OneStopShadesCard extends HTMLElement {
     const vars = [`--fill:${fill.join(',')}`, `--fill-light:${fill.map(v => Math.min(255, v + 90)).join(',')}`,
       `--radius:${{ square: '8px', rounded: '22px', extra_round: '32px' }[c.corners] || '22px'}`,
       `--pad:${{ compact: '12px', standard: '18px', roomy: '24px' }[c.card_spacing] || '18px'}`].join(';');
-    const L = c.layout in LAYOUTS ? c.layout : 'panel';
+    const L = c.layout in LAYOUTS ? c.layout : 'bar';
     let body = '';
     if (L.startsWith('bar')) {
       const tm = this._tmini(m);
@@ -1503,7 +1503,7 @@ const schema = d => {
   return [
     { name: 'area', selector: { area: {} } },
     grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
-    { name: 'layout', selector: sel(Object.entries(LAYOUTS)) },
+    { name: 'layout', selector: sel(Object.entries(LAYOUTS).filter(([k]) => k.startsWith('bar') || k === d.layout)) },
     { name: 'size', selector: sel([['standard', 'Standard'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
     section('g_shades', 'Which shades', 'mdi:roller-shade', [
       { name: 'master_shade', selector: { entity: { filter: { domain: 'cover' } } } },
