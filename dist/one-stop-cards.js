@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -377,8 +377,14 @@ class OneStopRoomLightsCard extends HTMLElement {
     if (c.on_white && c.on_white !== 'keep') {
       const k = +c.on_white, warm = t.filter(id => supportsTemp(h.states[id])), rest = t.filter(id => !supportsTemp(h.states[id]));
       if (warm.length) this._call('light', 'turn_on', { entity_id: warm, color_temp_kelvin: k, ...extra });
-      if (rest.length) this._call('light', 'turn_on', { entity_id: rest, ...(dimmableAll(h, rest) ? extra : {}) });
-    } else this._call('light', 'turn_on', { entity_id: t, ...(dimmableAll(h, t) ? extra : {}) });
+      const rl = rest.filter(id => id.startsWith('light.')), ro = rest.filter(id => !id.startsWith('light.'));
+      if (rl.length) this._call('light', 'turn_on', { entity_id: rl, ...(dimmableAll(h, rl) ? extra : {}) });
+      if (ro.length) this._call('homeassistant', 'turn_on', { entity_id: ro });
+    } else {
+      const lights = t.filter(id => id.startsWith('light.')), other = t.filter(id => !id.startsWith('light.'));
+      if (lights.length) this._call('light', 'turn_on', { entity_id: lights, ...(dimmableAll(h, lights) ? extra : {}) });
+      if (other.length) this._call('homeassistant', 'turn_on', { entity_id: other });
+    }
   }
   _sendBrightness(v) {
     const h = this._hass, c = this._cfg, members = roomLights(h, c);
@@ -482,6 +488,7 @@ class OneStopRoomLightsPopup extends HTMLElement {
           const wait = 160 - (Date.now() - last); if (wait <= 0) go(); else t = setTimeout(go, wait); });
         input.addEventListener('change', () => { clearTimeout(t); if (moved) card._call('light', 'turn_on', { entity_id: id, brightness_pct: +input.value }); setTimeout(() => { row._drag = false; }, 1000); });
         input.addEventListener('click', () => { if (!moved) card._call('homeassistant', 'toggle', { entity_id: id }); moved = false; });
+        row.addEventListener('click', e => { if (e.target === input || row._dimmable) return; card._call('homeassistant', 'toggle', { entity_id: id }); });
         row.querySelector('.ic').addEventListener('click', e => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); });
         this._body.appendChild(row); this._rows[id] = row;
       }
@@ -495,6 +502,7 @@ class OneStopRoomLightsPopup extends HTMLElement {
       row.querySelector('.nm').textContent = st.attributes.friendly_name || id;
       row.querySelector('.stt').textContent = !live(st) ? 'Not responding' : on ? (dimmable(st) ? pct + '%' : 'On') : 'Off';
       const input = row.querySelector('input'); input.disabled = !live(st);
+      row._dimmable = id.startsWith('light.') && dimmable(st); input.style.pointerEvents = row._dimmable ? '' : 'none';
       if (!row._drag) { input.value = pct || 1; row.querySelector('.fill').style.width = pct + '%'; }
     }
   }
@@ -528,7 +536,7 @@ const schema = d => {
   { name: 'area', required: true, selector: { area: {} } },
   grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
   section('g_master', 'Master lights', 'mdi:lightbulb-on-outline', [
-    { name: 'master_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
+    { name: 'master_lights', selector: { entity: { multiple: true, filter: [{ domain: 'light' }, { domain: 'switch' }] } } },
     { name: 'no_master', selector: sel([['all', 'Use every light in the room'], ['hide', 'Hide the On button']]) },
   ]),
   section('g_rules', 'Master rules', 'mdi:script-text-outline', [
@@ -545,7 +553,7 @@ const schema = d => {
     { name: 'rule_active', selector: sel([['any', 'Any light in the room is on'], ['master', 'A master light is on']]) },
   ]),
   section('g_lights', 'Other lights', 'mdi:lightbulb-group-outline', [
-    { name: 'extra_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
+    { name: 'extra_lights', selector: { entity: { multiple: true, filter: [{ domain: 'light' }, { domain: 'switch' }] } } },
     { name: 'hide_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
   ]),
   section('g_show', 'What to show', 'mdi:eye-outline', [grid([
