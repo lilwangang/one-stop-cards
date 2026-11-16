@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -18,7 +18,7 @@ const DEFAULTS = {
   picture: 'auto', tap: 'popup', hold: 'none',
   show_picture: true, show_icon: true, show_status: false, show_buttons: true, show_brightness: true, show_brightness_words: true, show_presets: true, show_wheel: true,
   button_position: 'auto', card_spacing: 'standard', corners: 'rounded', title_size: 'medium', font: 'classic', animations: true, haptics: true,
-  off_background: 'theme', on_glow: 'normal', follow_light_colour: true, icon_color: 'lights', icon_background: true,
+  off_background: 'theme', on_glow: 'normal', follow_light_colour: true, glow_mode: 'each', icon_color: 'lights', icon_background: true,
   button_size: 'large', button_shape: 'rounded', button_style: 'tinted', button_content: 'icon_words', button_text_size: 'medium', button_tint: 'soft',
   on_color: [35, 145, 86], off_color: [178, 52, 64], on_text: 'On', off_text: 'Off',
   on_icon: 'mdi:lightbulb-on', off_icon: 'mdi:lightbulb-off-outline',
@@ -49,6 +49,7 @@ const dimmable = st => { const m = modesOf(st); return m.length ? m.some(x => x 
 const supportsTemp = st => modesOf(st).includes('color_temp') || st?.attributes?.min_color_temp_kelvin != null;
 const supportsColour = st => modesOf(st).some(m => COLOUR_MODES.includes(m));
 const isGroup = st => Array.isArray(st?.attributes?.entity_id);
+function hueOf(csv) { const [r, g, b] = csv.split(',').map(n => n / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return 0; let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return (h * 60 + 360) % 360; }
 function kelvinToRgb(k) {
   const t = Math.max(1000, Math.min(40000, k)) / 100; let r, g, b;
   if (t <= 66) { r = 255; g = 99.47 * Math.log(t) - 161.12; b = t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04; }
@@ -145,6 +146,7 @@ ha-card.on{background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,
   border-color:rgba(var(--osl-rgb),var(--osl-glow-border,.34));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.16);
   backdrop-filter:blur(12px) saturate(1.15);-webkit-backdrop-filter:blur(12px) saturate(1.15)}
+ha-card.on.multi{background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 48%,rgba(255,255,255,.07)),var(--osl-multi),rgba(28,28,28,.62)}
 .wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i n p" "art art art" "m m m";column-gap:12px;row-gap:12px;align-items:center}
 .wrap.noicon{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n p" "art art" "m m"}
 .icon{grid-area:i;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--osl-icon-bg,rgba(var(--osl-rgb),.10))}
@@ -181,7 +183,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:var(--sl-t
 input[type=range]::-moz-range-thumb{width:calc(var(--sl-th,32px) - 6px);height:calc(var(--sl-th,32px) - 6px);border-radius:50%;background:var(--sl-c);border:3px solid #fff}
 input[type=range]:disabled{opacity:.45;cursor:default}
 .dim.bubble{position:relative;display:block;height:var(--sl-bh,56px);border-radius:var(--sl-br,18px);overflow:hidden;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.dim.bubble .bfill{position:absolute;inset:0 auto 0 0;width:var(--pct,0%);background:var(--sl-c);opacity:.55;border-radius:inherit;transition:width .12s ease-out}
+.dim.bubble .bfill{position:absolute;inset:0 auto 0 0;width:var(--pct,0%);background:var(--osl-fill,var(--sl-c));opacity:.55;border-radius:inherit;transition:width .12s ease-out}
 .dim.bubble .blabel{position:absolute;inset:0;display:flex;align-items:center;gap:10px;padding:0 18px;pointer-events:none;font-weight:600;font-size:16px;color:#f7f9fc;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .dim.bubble .blabel ha-icon{--mdc-icon-size:24px}
 .dim.bubble .blabel .bpct{margin-left:auto;font-weight:650}
@@ -376,13 +378,33 @@ class OneStopRoomLightsCard extends HTMLElement {
     const master = masterLights(h, c, members);
     const active = c.rule_active === 'master' ? master.some(id => isOn(h.states[id])) : onStates.length > 0;
     // live room colour (brightness-weighted)
-    let rgb = NEUTRAL;
+    let rgb = NEUTRAL, groups = [];
     if (active && c.follow_light_colour !== false) {
       let w = 0, acc = [0, 0, 0];
-      for (const st of onStates) { const b = (st.attributes.brightness ?? 255) / 255 + .05, col = lightRgb(st); acc = acc.map((v, i) => v + col[i] * b); w += b; }
+      for (const st of onStates) {
+        const b = (st.attributes.brightness ?? 255) / 255 + .05, col = lightRgb(st);
+        acc = acc.map((v, i) => v + col[i] * b); w += b;
+        // group lights with nearly the same colour so each different colour shows on its own
+        const g = groups.find(x => Math.hypot(x.rgb[0] - col[0], x.rgb[1] - col[1], x.rgb[2] - col[2]) < 70);
+        if (g) { g.rgb = g.rgb.map((v, i) => (v * g.w + col[i] * b) / (g.w + b)); g.w += b; } else groups.push({ rgb: col.slice(), w: b });
+      }
       rgb = acc.map(v => Math.round(v / w));
+      groups.sort((a, b) => b.w - a.w);
+      if (groups.length) rgb = groups[0].rgb.map(Math.round);
     } else if (active) rgb = [255, 196, 120];
+    const multi = c.glow_mode !== 'blend' && groups.length > 1;
+    if (c.glow_mode === 'blend' && active && c.follow_light_colour !== false) {
+      let w = 0, acc = [0, 0, 0]; for (const g of groups) { acc = acc.map((v, i) => v + g.rgb[i] * g.w); w += g.w; } rgb = acc.map(v => Math.round(v / w));
+    }
     this._el.card.style.setProperty('--osl-rgb', rgb.join(','));
+    this._el.card.classList.toggle('multi', multi);
+    if (multi) {
+      const cols = groups.slice(0, 5).map(g => g.rgb.map(Math.round).join(',')).sort((a, b) => hueOf(a) - hueOf(b));
+      const stops = cols.map((col, i) => `rgba(${col},calc(var(--osl-glow-a,.25) + .12)) ${Math.round(i * 100 / (cols.length - 1))}%`).join(',');
+      this._el.card.style.setProperty('--osl-multi', `linear-gradient(115deg,${stops})`);
+      if (c.slider_colour === 'lights' || !c.slider_colour) this._el.card.style.setProperty('--osl-fill', `linear-gradient(90deg,${cols.map(col => `rgb(${col})`).join(',')})`);
+      else this._el.card.style.removeProperty('--osl-fill');
+    } else { this._el.card.style.removeProperty('--osl-multi'); this._el.card.style.removeProperty('--osl-fill'); }
     this._el.card.classList.toggle('on', active);
     this._el.icon.setAttribute('icon', this._icon());
     this._el.name.textContent = this._title();
@@ -621,6 +643,7 @@ const schema = d => {
     ...(d.off_background === 'custom' ? [{ name: 'off_custom_color', selector: { color_rgb: {} } }] : []),
     { name: 'on_glow', selector: sel([['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
     { name: 'follow_light_colour', selector: toggle },
+    { name: 'glow_mode', selector: sel([['each', 'Show each light colour'], ['blend', 'Blend into one colour']]) },
     { name: 'icon_color', selector: sel([['lights', 'Match the lights'], ['white', 'White'], ['custom', 'My own colour']]) },
     ...(d.icon_color === 'custom' ? [{ name: 'icon_custom_color', selector: { color_rgb: {} } }] : []),
     { name: 'icon_background', selector: toggle },
@@ -685,7 +708,7 @@ const LABELS = {
   show_brightness: 'Brightness slider', show_brightness_words: 'Brightness word and %', show_presets: 'Light colour buttons', show_wheel: 'Colour wheel button',
   button_position: 'Where the On / Off buttons go', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style',
   title_size: 'Title size', title_color: 'Title colour',
-  off_background: 'Background when the lights are off', off_custom_color: 'Your background colour', on_glow: 'Glow when the lights are on', follow_light_colour: 'Glow matches the light colour',
+  off_background: 'Background when the lights are off', off_custom_color: 'Your background colour', on_glow: 'Glow when the lights are on', follow_light_colour: 'Glow matches the light colour', glow_mode: 'When lights are different colours',
   icon_color: 'Room icon colour', icon_custom_color: 'Your icon colour', icon_background: 'Shaded box behind the icon',
   hover_color: 'Edge colour on mouse-over (grey = follow the lights)', animations: 'Gentle animations',
   button_size: 'Button size', button_shape: 'Button shape', button_style: 'Button style', button_tint: 'Colour strength',
