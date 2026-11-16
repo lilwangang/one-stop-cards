@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -27,6 +27,8 @@ const DEFAULTS = {
   preset_1: '2000', preset_2: '3500', preset_3: '5000', preset_4: '6500', colour_count: '0',
   picture_size: 'medium', picture_on_phones: false,
   wake_brightness: 50,
+  no_master: 'all', rule_on: 'master', on_brightness: 'keep', on_brightness_pct: 100, on_white: 'keep',
+  rule_off: 'all', rule_slider: 'on', rule_colour: 'on', rule_active: 'any',
   title_color: [247, 249, 252], hover_color: [184, 184, 184], off_custom_color: [40, 44, 52], icon_custom_color: [255, 196, 120],
   slider_custom_color: [255, 179, 107], colour_1: [255, 64, 64], colour_2: [64, 120, 255], colour_3: [180, 80, 255],
 };
@@ -84,7 +86,15 @@ function roomLights(hass, cfg) {
   for (const id of hide) out.delete(id);
   return [...out].sort((a, b) => (hass.states[a]?.attributes?.friendly_name || a).localeCompare(hass.states[b]?.attributes?.friendly_name || b));
 }
-const onTargets = (hass, cfg, members) => (cfg.on_lights?.length ? cfg.on_lights : members).filter(id => live(hass.states[id]));
+/* Master lights: what turns on when the room is off. */
+function masterLights(hass, cfg, members) {
+  const picked = cfg.master_lights?.length ? cfg.master_lights : cfg.on_lights?.length ? cfg.on_lights : null;
+  if (picked) return picked.filter(id => hass.states[id]);
+  return cfg.no_master === 'hide' ? [] : members;
+}
+const onTargets = (hass, cfg, members) => masterLights(hass, cfg, members).filter(id => live(hass.states[id]));
+const dimmableAll = (hass, ids) => ids.every(id => dimmable(hass.states[id]) || isGroup(hass.states[id]));
+const ruleSet = (hass, cfg, members, rule) => (rule === 'master' ? masterLights(hass, cfg, members) : members).filter(id => live(hass.states[id]));
 
 /* ---------------- styles ---------------- */
 const CARD_CSS = `
@@ -305,7 +315,8 @@ class OneStopRoomLightsCard extends HTMLElement {
     this._members = members;
     const states = members.map(id => h.states[id]).filter(Boolean);
     const onStates = states.filter(isOn);
-    const active = onStates.length > 0;
+    const master = masterLights(h, c, members);
+    const active = c.rule_active === 'master' ? master.some(id => isOn(h.states[id])) : onStates.length > 0;
     // live room colour (brightness-weighted)
     let rgb = NEUTRAL;
     if (active && c.follow_light_colour !== false) {
@@ -321,11 +332,13 @@ class OneStopRoomLightsCard extends HTMLElement {
       const n = onStates.length, total = states.length;
       this._el.status.textContent = !total ? 'No lights found' : n === 0 ? 'All off' : n === total ? (total === 1 ? 'On' : `All ${total} on`) : `${n} of ${total} on`;
     }
-    const targets = onTargets(h, c, members);
+    const targets = c.rule_on === 'all' ? members.filter(id => live(h.states[id])) : onTargets(h, c, members);
     this._el.on.disabled = !targets.length;
-    this._el.off.disabled = !states.some(live);
+    this._el.on.classList.toggle('hide', !master.length && c.no_master === 'hide' && c.rule_on !== 'all');
+    this._el.off.disabled = !ruleSet(h, c, members, c.rule_off).length;
     // brightness
-    const dimOn = onStates.filter(dimmable);
+    const sliderIds = c.rule_slider === 'on' ? members : ruleSet(h, c, members, c.rule_slider);
+    const dimOn = sliderIds.map(id => h.states[id]).filter(st => isOn(st) && dimmable(st));
     const pct = dimOn.length ? Math.round(dimOn.reduce((s, st) => s + (st.attributes.brightness || 0), 0) / dimOn.length / 2.55) : 0;
     if (!this._dragging) { this._el.range.value = pct; this._paintRange(pct); }
     this._el.range.disabled = !states.some(st => live(st) && dimmable(st));
@@ -343,14 +356,29 @@ class OneStopRoomLightsCard extends HTMLElement {
 
   _power(turnOn) {
     const h = this._hass, c = this._cfg, members = roomLights(h, c);
-    if (turnOn) { const t = onTargets(h, c, members); if (t.length) this._call('light', 'turn_on', { entity_id: t }); }
-    else { const t = members.filter(id => live(h.states[id])); if (t.length) this._call('homeassistant', 'turn_off', { entity_id: t }); }
+    if (!turnOn) { const t = ruleSet(h, c, members, c.rule_off); if (t.length) this._call('homeassistant', 'turn_off', { entity_id: t }); return; }
+    const anyOn = members.some(id => isOn(h.states[id]));
+    const useAll = c.rule_on === 'all' || (c.rule_on === 'master_if_off' && anyOn);
+    const t = useAll ? members.filter(id => live(h.states[id])) : onTargets(h, c, members);
+    if (!t.length) return;
+    const extra = c.on_brightness === 'fixed' ? { brightness_pct: +c.on_brightness_pct || 100 } : {};
+    if (c.on_white && c.on_white !== 'keep') {
+      const k = +c.on_white, warm = t.filter(id => supportsTemp(h.states[id])), rest = t.filter(id => !supportsTemp(h.states[id]));
+      if (warm.length) this._call('light', 'turn_on', { entity_id: warm, color_temp_kelvin: k, ...extra });
+      if (rest.length) this._call('light', 'turn_on', { entity_id: rest, ...(dimmableAll(h, rest) ? extra : {}) });
+    } else this._call('light', 'turn_on', { entity_id: t, ...(dimmableAll(h, t) ? extra : {}) });
   }
   _sendBrightness(v) {
     const h = this._hass, c = this._cfg, members = roomLights(h, c);
+    if (c.rule_slider === 'master' || c.rule_slider === 'all') {
+      const t = ruleSet(h, c, members, c.rule_slider).filter(id => dimmable(h.states[id]) || isGroup(h.states[id]));
+      if (!t.length) return;
+      if (v <= 0) this._call('light', 'turn_off', { entity_id: t }); else this._call('light', 'turn_on', { entity_id: t, brightness_pct: v });
+      return;
+    }
     const onNow = members.filter(id => isOn(h.states[id]) && dimmable(h.states[id]));
-    if (v <= 0) { const t = onNow.length ? onNow : []; if (t.length) this._call('light', 'turn_off', { entity_id: t }); return; }
-    const t = onNow.length ? onNow : onTargets(h, c, members).filter(id => dimmable(h.states[id]));
+    if (v <= 0) { if (onNow.length) this._call('light', 'turn_off', { entity_id: onNow }); return; }
+    const t = onNow.length ? onNow : onTargets(h, c, members).filter(id => dimmable(h.states[id]) || isGroup(h.states[id]));
     if (t.length) this._call('light', 'turn_on', { entity_id: t, brightness_pct: v });
   }
   /* Colour rule: if any room light is on, change only the lights that are on (keep their brightness).
@@ -358,14 +386,17 @@ class OneStopRoomLightsCard extends HTMLElement {
   _applyColour(data) {
     const h = this._hass, c = this._cfg, members = roomLights(h, c);
     const anyOn = members.some(id => isOn(h.states[id]));
-    let targets = anyOn ? members.filter(id => isOn(h.states[id])) : onTargets(h, c, members);
+    let targets;
+    if (c.rule_colour === 'master') targets = onTargets(h, c, members);
+    else if (c.rule_colour === 'all') targets = members.filter(id => live(h.states[id]));
+    else targets = anyOn ? members.filter(id => isOn(h.states[id])) : onTargets(h, c, members);
     const wantsTemp = 'color_temp_kelvin' in data;
-    targets = targets.filter(id => { const st = h.states[id]; return live(st) && (wantsTemp ? supportsTemp(st) : supportsColour(st)); });
+    targets = targets.filter(id => { const st = h.states[id]; return live(st) && (isGroup(st) || (wantsTemp ? supportsTemp(st) : supportsColour(st))); });
     if (!targets.length) { this._say(anyOn ? 'None of the lights that are on can do that colour.' : 'No lights here can do that colour.'); return; }
     for (const id of targets) {
       const st = h.states[id], d = { entity_id: id, ...data };
-      if (wantsTemp) { const lo = st.attributes.min_color_temp_kelvin || 2000, hi = st.attributes.max_color_temp_kelvin || 6500; d.color_temp_kelvin = Math.max(lo, Math.min(hi, data.color_temp_kelvin)); }
-      if (!anyOn) d.brightness_pct = +c.wake_brightness || 50;
+      if (wantsTemp && !isGroup(st)) { const lo = st.attributes.min_color_temp_kelvin || 2000, hi = st.attributes.max_color_temp_kelvin || 6500; d.color_temp_kelvin = Math.max(lo, Math.min(hi, data.color_temp_kelvin)); }
+      if (!isOn(st)) d.brightness_pct = +c.wake_brightness || 50;
       this._call('light', 'turn_on', d);
     }
   }
@@ -484,11 +515,26 @@ const schema = d => {
   return [
   { name: 'area', required: true, selector: { area: {} } },
   grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
-  section('g_lights', 'Which lights', 'mdi:lightbulb-group-outline', [
-    { name: 'on_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
+  section('g_master', 'Master lights', 'mdi:lightbulb-on-outline', [
+    { name: 'master_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
+    { name: 'no_master', selector: sel([['all', 'Use every light in the room'], ['hide', 'Hide the On button']]) },
+  ]),
+  section('g_rules', 'Master rules', 'mdi:script-text-outline', [
+    { name: 'rule_on', selector: sel([['master', 'Turn on the master lights'], ['master_if_off', 'Master lights if the room is off, every light if some are already on'], ['all', 'Turn on every light in the room']]) },
+    grid([
+      { name: 'on_brightness', selector: sel([['keep', 'Their last brightness'], ['fixed', 'A set brightness']]) },
+      ...(d.on_brightness === 'fixed' ? [{ name: 'on_brightness_pct', selector: { number: { min: 5, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } } }] : []),
+      { name: 'on_white', selector: sel([['keep', 'Their last colour'], ...Object.entries(PRESETS).map(([k, [n]]) => [k, `${n} (${k} K)`])]) },
+    ]),
+    { name: 'rule_off', selector: sel([['all', 'Every light in the room'], ['master', 'Only the master lights']]) },
+    { name: 'rule_slider', selector: sel([['on', 'Lights that are on (if all are off, the master lights)'], ['master', 'Always the master lights'], ['all', 'Every light in the room']]) },
+    { name: 'rule_colour', selector: sel([['on', 'Lights that are on (if all are off, the master lights)'], ['master', 'Always the master lights'], ['all', 'Every light in the room']]) },
+    { name: 'wake_brightness', selector: { number: { min: 5, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } } },
+    { name: 'rule_active', selector: sel([['any', 'Any light in the room is on'], ['master', 'A master light is on']]) },
+  ]),
+  section('g_lights', 'Other lights', 'mdi:lightbulb-group-outline', [
     { name: 'extra_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
     { name: 'hide_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
-    { name: 'wake_brightness', selector: { number: { min: 5, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } } },
   ]),
   section('g_show', 'What to show', 'mdi:eye-outline', [grid([
     { name: 'show_icon', selector: toggle }, { name: 'show_status', selector: toggle },
@@ -562,8 +608,11 @@ const schema = d => {
 };
 const LABELS = {
   area: 'Room', name: 'Card title', room_icon: 'Room icon',
-  on_lights: 'Lights the On button turns on (empty = all lights in the room)', extra_lights: 'Add lights from other rooms', hide_lights: 'Leave these lights out',
-  wake_brightness: 'Brightness when a colour turns the room on',
+  master_lights: 'Master lights (what turns on when the room is off)', no_master: 'If no master lights are picked',
+  rule_on: 'When you press On', on_brightness: 'Turn on at', on_brightness_pct: 'Brightness', on_white: 'Light colour when turned on',
+  rule_off: 'When you press Off, turn off', rule_slider: 'The brightness slider changes', rule_colour: 'The colour buttons change',
+  rule_active: 'Show the room as on when', extra_lights: 'Add lights from other rooms', hide_lights: 'Leave these lights out',
+  wake_brightness: 'Brightness when a colour turns a light on',
   show_icon: 'Room icon', show_status: 'How many lights are on', show_buttons: 'On / Off buttons', show_picture: 'Room picture',
   show_brightness: 'Brightness slider', show_brightness_words: 'Brightness words and %', show_presets: 'Light colour buttons', show_wheel: 'Colour wheel button',
   button_position: 'Where the On / Off buttons go', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style',
@@ -583,14 +632,15 @@ const LABELS = {
 };
 const HELPERS = {
   name: 'Leave empty to use the room’s name.',
-  on_lights: 'Tip: choose the room’s light group here so everything turns on together.',
+  master_lights: 'Tip: pick the room’s light group or its main lights. These are also used by the slider and colour buttons when the room is off.',
+  rule_active: 'Controls the glow and the “on” look of the card.',
   hide_lights: 'Left-out lights stay out of the pop-up, the glow and the buttons.',
   picture_caption: 'Leave empty to keep the standard wording.',
   colour_count: 'Adds your own colour buttons next to the white ones.',
 };
 
 class OneStopRoomLightsCardEditor extends HTMLElement {
-  setConfig(config) { this._config = { ...config }; this._render(); }
+  setConfig(config) { const c = { ...config }; if (c.on_lights && !c.master_lights) { c.master_lights = c.on_lights; } delete c.on_lights; this._config = c; this._render(); }
   set hass(hass) { this._hass = hass; this._render(); }
   _render() {
     if (!this._config) return;
@@ -610,6 +660,8 @@ class OneStopRoomLightsCardEditor extends HTMLElement {
           if (k === 'slider_custom_color' && v.slider_colour !== 'custom') continue;
           if (/^colour_[123]$/.test(k) && +k.slice(-1) > +(v.colour_count || 0)) continue;
           if (k === 'picture_url' && v.picture !== 'custom') continue;
+          if (k === 'on_lights') continue;
+          if (k === 'on_brightness_pct' && v.on_brightness !== 'fixed') continue;
           if (k === 'tap_page' && v.tap !== 'page') continue;
           if (k === 'hold_page' && v.hold !== 'page') continue;
           out[k] = val;
