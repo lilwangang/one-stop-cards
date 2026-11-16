@@ -34,6 +34,20 @@ A full Plex page for a room's TV: Now Playing with controls, Continue Watching, 
 ### One Stop - Streaming card
 Browse and search Netflix, Disney+, Prime Video, Crave, Apple TV, Paramount+ and Hayu, filtered by country and plan so every title shown is one the home can watch (catalogue data from JustWatch). Tap a title to open it on the room's Apple TV, or open the app. YouTube, CBC Gem and TELUS TV+ open the app directly. Open a service directly with `?service=netflix` on the page URL.
 
+For reliable loading on phones and remote access, add this to `configuration.yaml` and restart. The card then fetches the catalogue through Home Assistant instead of the browser, which JustWatch often refuses:
+
+```yaml
+rest_command:
+  justwatch_graphql:
+    url: "https://apis.justwatch.com/graphql"
+    method: post
+    content_type: "application/json"
+    headers:
+      Origin: "http://localhost:8123"
+    payload: "{{ body }}"
+    timeout: 20
+```
+
 ## Install
 
 ### HACS (recommended)

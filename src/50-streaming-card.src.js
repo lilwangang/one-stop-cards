@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -43,11 +43,32 @@ const big = p => p ? IMG + p.replace('{profile}', 's592').replace('{format}', 'w
 /* ---------------- JustWatch ---------------- */
 const JWQ = {
   cache: new Map(),
+  hass: null,
+  // Browsers (iOS app, remote URLs) are often refused by JustWatch CORS, so when Home Assistant
+  // has rest_command.justwatch_graphql the request goes server-side; direct fetch is the fallback.
+  async _viaHass(body) {
+    const h = this.hass;
+    if (!h?.services?.rest_command?.justwatch_graphql) return null;
+    const r = await h.callWS({ type: 'call_service', domain: 'rest_command', service: 'justwatch_graphql', service_data: { body }, return_response: true });
+    const res = r?.response || {};
+    if (res.status !== 200) throw new Error('Catalogue server returned ' + res.status);
+    return typeof res.content === 'string' ? JSON.parse(res.content) : res.content;
+  },
+  async _direct(body) {
+    const r = await fetch(JW, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    return r.json();
+  },
   async q(query, variables, ttl = 600000) {
     const k = query + JSON.stringify(variables), hit = this.cache.get(k);
     if (hit && Date.now() - hit.t < ttl) return hit.v;
-    const r = await fetch(JW, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }) });
-    const d = await r.json(); if (d.errors) throw new Error(d.errors[0].message);
+    const body = JSON.stringify({ query, variables });
+    let d, err;
+    for (let attempt = 0; attempt < 3 && !d; attempt++) {
+      try { d = await this._viaHass(body) || await this._direct(body); }
+      catch (e) { err = e; await new Promise(r => setTimeout(r, 400 * (attempt + 1))); }
+    }
+    if (!d) { if (hit) return hit.v; throw err || new Error('Load failed'); }
+    if (d.errors) throw new Error(d.errors[0].message);
     this.cache.set(k, { t: Date.now(), v: d.data }); return d.data;
   },
   F: 'id objectType content(country:$c,language:$l){title originalReleaseYear posterUrl shortDescription runtime genres{shortName} scoring{imdbScore}} offers(country:$c,platform:WEB,filter:{packages:$p}){standardWebURL monetizationType}',
@@ -173,7 +194,7 @@ class OneStopStreamingCard extends HTMLElement {
     window.addEventListener('location-changed', this._onLoc); window.addEventListener('popstate', this._onLoc);
   }
   disconnectedCallback() { Shared.listeners.delete(this._onShared); window.removeEventListener('location-changed', this._onLoc); window.removeEventListener('popstate', this._onLoc); }
-  set hass(hass) { const first = !this._hass; this._hass = hass; if (first) Shared.get(hass); if (!this._built) this._build(); }
+  set hass(hass) { const first = !this._hass; this._hass = hass; JWQ.hass = hass; if (first) Shared.get(hass); if (!this._built) this._build(); }
   getCardSize() { return 12; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
   _urlService() { const s = new URLSearchParams(location.search).get('service'); return s && SERVICES[s] ? s : null; }
