@@ -2359,7 +2359,7 @@ console.info(`%c ONE STOP %c Thermostat card ${VERSION} `, 'background:#375374;c
  */
 (() => {
 'use strict';
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const TAG = 'one-stop-plex-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'plex', STYLE_DASH = 'one-stop-cards';
@@ -2736,34 +2736,40 @@ class OneStopPlexCard extends HTMLElement {
     const R = this.shadowRoot, box = R?.querySelector('[data-np]'); if (!box) return;
     const c = this._cfg, st = this._hass.states[c.apple_tv];
     const px = c.plex_client ? this._hass.states[c.plex_client] : null, pa = px && ['playing', 'paused'].includes(px.state) ? px.attributes : {};
-    const a = { ...(st?.attributes || {}) }; for (const k of ['media_series_title', 'media_season', 'media_episode']) if (a[k] == null && pa[k] != null && (!a.media_title || pa.media_title === a.media_title)) a[k] = pa[k];
-    const playing = st && ['playing', 'paused'].includes(st.state) && (a.media_title || a.media_series_title);
-    const sig = JSON.stringify([st?.state, a.media_title, a.media_series_title, a.media_season, a.entity_picture, a.media_duration]);
+    let a = { ...(st?.attributes || {}) }; for (const k of ['media_series_title', 'media_season', 'media_episode']) if (a[k] == null && pa[k] != null && (!a.media_title || pa.media_title === a.media_title)) a[k] = pa[k];
+    // Apple TV not reporting what's on (e.g. AirPlay link down)? Use the Plex app's own report instead.
+    const atvKnows = st && ['playing', 'paused'].includes(st.state) && (a.media_title || a.media_series_title);
+    this._src = atvKnows || !pa.media_title ? c.apple_tv : c.plex_client;
+    if (!atvKnows && pa.media_title) a = { ...pa, app_name: 'Plex' };
+    const curState = this._src === c.apple_tv ? st?.state : px.state;
+    const playing = ['playing', 'paused'].includes(curState) && (a.media_title || a.media_series_title);
+    const sig = JSON.stringify([curState, this._src, a.media_title, a.media_series_title, a.media_season, a.entity_picture, a.media_duration]);
     if (sig === this._npSig) return this._npTick(); this._npSig = sig;
     if (!playing) { box.innerHTML = `<div class="npidle"><ha-icon icon="mdi:television-off"></ha-icon>${st ? (st.state === 'off' || st.state === 'standby' ? 'The TV is off.' : 'Nothing is playing.') : 'Apple TV not found.'}</div>`; return; }
     const sk = c.skip_seconds;
-    box.innerHTML = `<div class="np ${c.playing_glow && st.state === 'playing' ? 'glow' : ''}">${a.entity_picture ? `<img src="${esc(a.entity_picture)}" alt="">` : '<div></div>'}<div style="min-width:0">
-      <div class="t1">${esc(a.app_name || 'Playing')} · ${st.state === 'paused' ? 'Paused' : 'Playing'}</div>
+    box.innerHTML = `<div class="np ${c.playing_glow && curState === 'playing' ? 'glow' : ''}">${a.entity_picture ? `<img src="${esc(a.entity_picture)}" alt="">` : '<div></div>'}<div style="min-width:0">
+      <div class="t1">${esc(a.app_name || 'Playing')} · ${curState === 'paused' ? 'Paused' : 'Playing'}</div>
       <div class="t2">${esc(a.media_series_title || a.media_title)}</div>${a.media_series_title ? `<div class="t3">${a.media_season ? `S${a.media_season} · E${a.media_episode} · ` : ''}${esc(a.media_title || '')}</div>` : ''}
       ${a.media_duration ? '<div class="bar" data-seek><i></i></div><div class="times"><span data-pos></span><span data-dur></span></div>' : ''}</div></div>
-      <div class="ctl"><button data-c="back" aria-label="Back ${sk} seconds"><ha-icon icon="mdi:rewind-${sk}"></ha-icon></button><button class="main" data-c="pp" aria-label="Play or pause"><ha-icon icon="${st.state === 'playing' ? 'mdi:pause' : 'mdi:play'}"></ha-icon></button><button data-c="fwd" aria-label="Forward ${sk} seconds"><ha-icon icon="mdi:fast-forward-${sk}"></ha-icon></button><button data-c="stop" aria-label="Stop"><ha-icon icon="mdi:stop"></ha-icon></button></div>`;
+      <div class="ctl"><button data-c="back" aria-label="Back ${sk} seconds"><ha-icon icon="mdi:rewind-${sk}"></ha-icon></button><button class="main" data-c="pp" aria-label="Play or pause"><ha-icon icon="${curState === 'playing' ? 'mdi:pause' : 'mdi:play'}"></ha-icon></button><button data-c="fwd" aria-label="Forward ${sk} seconds"><ha-icon icon="mdi:fast-forward-${sk}"></ha-icon></button><button data-c="stop" aria-label="Stop"><ha-icon icon="mdi:stop"></ha-icon></button></div>`;
     box.querySelector('img')?.addEventListener('error', e => e.target.remove(), { once: true });
     box.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => this._ctl(b.dataset.c)));
     box.querySelector('[data-seek]')?.addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); this._seek(((e.clientX - r.left) / r.width) * (a.media_duration || 0)); });
     this._npTick();
   }
-  _pos() { const st = this._hass?.states[this._cfg.apple_tv], a = st?.attributes || {}; if (a.media_position == null) return null; let p = a.media_position; if (st.state === 'playing' && a.media_position_updated_at) p += (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000; return Math.min(p, a.media_duration || p); }
+  _pos() { const st = this._hass?.states[this._src || this._cfg.apple_tv], a = st?.attributes || {}; if (a.media_position == null) return null; let p = a.media_position; if (st.state === 'playing' && a.media_position_updated_at) p += (Date.now() - new Date(a.media_position_updated_at).getTime()) / 1000; return Math.min(p, a.media_duration || p); }
   _npTick() {
-    const R = this.shadowRoot, st = this._hass?.states[this._cfg?.apple_tv]; if (!R || !st) return;
+    const R = this.shadowRoot, st = this._hass?.states[this._src || this._cfg?.apple_tv]; if (!R || !st) return;
     const d = st.attributes?.media_duration, p = this._pos(); if (!d || p == null) return;
     const i = R.querySelector('[data-seek] i'); if (i) i.style.setProperty('--p', (p / d * 100) + '%');
     const a = R.querySelector('[data-pos]'), b = R.querySelector('[data-dur]'); if (a) a.textContent = fmtTime(p); if (b) b.textContent = '-' + fmtTime(d - p);
   }
-  _seek(sec) { this._buzz(); this._hass.callService('media_player', 'media_seek', { entity_id: this._cfg.apple_tv, seek_position: Math.max(0, Math.round(sec)) }).catch(() => {}); }
+  _seek(sec) { this._buzz(); this._hass.callService('media_player', 'media_seek', { entity_id: this._src || this._cfg.apple_tv, seek_position: Math.max(0, Math.round(sec)) }).catch(() => {}); }
   _ctl(k) {
     this._buzz(); const c = this._cfg, sk = +c.skip_seconds || 10, p = this._pos();
-    if (k === 'pp') return this._hass.callService('media_player', 'media_play_pause', { entity_id: c.apple_tv });
-    if (k === 'stop') return this._hass.callService('media_player', 'media_stop', { entity_id: c.apple_tv });
+    const tgt = this._src || c.apple_tv;
+    if (k === 'pp') return this._hass.callService('media_player', 'media_play_pause', { entity_id: tgt });
+    if (k === 'stop') return this._hass.callService('media_player', 'media_stop', { entity_id: tgt });
     if (p != null) return this._seek(p + (k === 'fwd' ? sk : -sk));
     const remote = c.remote || c.apple_tv.replace('media_player.', 'remote.');
     this._hass.callService('remote', 'send_command', { entity_id: remote, command: k === 'fwd' ? 'skip_forward' : 'skip_backward' });
