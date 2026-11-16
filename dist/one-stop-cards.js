@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -16,15 +16,19 @@ const PIC_GUESS = [[/kitchen/,'kitchen'],[/bed|nursery|kid/,'bedroom'],[/bath|wa
 
 const DEFAULTS = {
   picture: 'auto', tap: 'popup', hold: 'none',
-  show_picture: true, show_icon: true, show_buttons: true, show_brightness: true, show_presets: true, show_wheel: true,
-  card_spacing: 'standard', corners: 'rounded', title_size: 'medium',
-  off_background: 'theme', on_glow: 'normal', follow_light_colour: true,
-  button_size: 'large', button_shape: 'rounded', button_tint: 'soft',
+  show_picture: true, show_icon: true, show_status: false, show_buttons: true, show_brightness: true, show_brightness_words: true, show_presets: true, show_wheel: true,
+  button_position: 'auto', card_spacing: 'standard', corners: 'rounded', title_size: 'medium', font: 'classic', animations: true, haptics: true,
+  off_background: 'theme', on_glow: 'normal', follow_light_colour: true, icon_color: 'lights', icon_background: true,
+  button_size: 'large', button_shape: 'rounded', button_style: 'tinted', button_content: 'icon_words', button_text_size: 'medium', button_tint: 'soft',
   on_color: [35, 145, 86], off_color: [178, 52, 64], on_text: 'On', off_text: 'Off',
   on_icon: 'mdi:lightbulb-on', off_icon: 'mdi:lightbulb-off-outline',
-  preset_1: '2000', preset_2: '3500', preset_3: '5000', preset_4: '6500',
+  slider_size: 'standard', slider_colour: 'lights',
+  chip_shape: 'circle', chip_size: 'medium',
+  preset_1: '2000', preset_2: '3500', preset_3: '5000', preset_4: '6500', colour_count: '0',
+  picture_size: 'medium', picture_on_phones: false,
   wake_brightness: 50,
-  title_color: [247, 249, 252], hover_color: [184, 184, 184], off_custom_color: [40, 44, 52],
+  title_color: [247, 249, 252], hover_color: [184, 184, 184], off_custom_color: [40, 44, 52], icon_custom_color: [255, 196, 120],
+  slider_custom_color: [255, 179, 107], colour_1: [255, 64, 64], colour_2: [64, 120, 255], colour_3: [180, 80, 255],
 };
 const PRESETS = { '2000': ['Candlelight', '#ff890e'], '2700': ['Warm white', '#ffa957'], '3000': ['Soft white', '#ffb46b'], '3500': ['Soft white', '#ffc18d'], '4000': ['Neutral white', '#ffd1a3'], '5000': ['Cool white', '#ffe4ce'], '6500': ['Daylight', '#fffefa'] };
 const COLOUR_MODES = ['hs', 'xy', 'rgb', 'rgbw', 'rgbww'];
@@ -85,52 +89,60 @@ const onTargets = (hass, cfg, members) => (cfg.on_lights?.length ? cfg.on_lights
 /* ---------------- styles ---------------- */
 const CARD_CSS = `
 :host{display:block;--osl-rgb:184,184,184}
-ha-card{position:relative;overflow:hidden;padding:var(--osl-pad,18px);border-radius:var(--osl-radius,22px);box-sizing:border-box;
+ha-card{position:relative;overflow:hidden;padding:var(--osl-pad,18px);border-radius:var(--osl-radius,22px);box-sizing:border-box;container:osl/inline-size;
   background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.015)),var(--osl-off-bg);
   border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 24px rgba(0,0,0,.10);
   backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);color:#f7f9fc;cursor:pointer;
-  -webkit-tap-highlight-color:transparent;user-select:none}
+  -webkit-tap-highlight-color:transparent;user-select:none;font-family:var(--osl-font)}
 ha-card.on{background:linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.035) 48%,rgba(255,255,255,.075)),
   linear-gradient(rgba(var(--osl-rgb),var(--osl-glow-a,.25)),rgba(var(--osl-rgb),var(--osl-glow-b,.12))),rgba(28,28,28,.62);
   border-color:rgba(var(--osl-rgb),var(--osl-glow-border,.34));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.16);
   backdrop-filter:blur(12px) saturate(1.15);-webkit-backdrop-filter:blur(12px) saturate(1.15)}
-.wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i n p" "art art art" "m m m";column-gap:10px;row-gap:10px;align-items:center}
-.icon{grid-area:i;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(var(--osl-rgb),.10)}
-.icon ha-icon{--mdc-icon-size:var(--osl-icon,34px);color:rgb(var(--osl-rgb))}
-ha-card.on .icon ha-icon{animation:osl-breathe 3.2s ease-in-out infinite}
-.name{grid-area:n;font-family:Arial,sans-serif;font-weight:650;letter-spacing:-.4px;font-size:var(--osl-title,21px);line-height:1.2;color:var(--osl-title-color,#f7f9fc);overflow-wrap:anywhere}
-.power{grid-area:p;display:flex;gap:8px;width:clamp(156px,46%,250px);align-self:start}
-.pbtn{all:unset;box-sizing:border-box;cursor:pointer;flex:1;min-width:0;height:var(--osl-btn,80px);border-radius:var(--osl-btn-radius,14px);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:650 14px/18px Arial,sans-serif;color:#f7f9fc;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.1);transition:transform .12s ease,filter .12s ease}
-.pbtn ha-icon{--mdc-icon-size:calc(var(--osl-btn,80px) * .42);color:#f5fff8}
+.wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"i n p" "art art art" "m m m";column-gap:12px;row-gap:12px;align-items:center}
+.wrap.noicon{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n p" "art art" "m m"}
+.icon{grid-area:i;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--osl-icon-bg,rgba(var(--osl-rgb),.10))}
+.icon ha-icon{--mdc-icon-size:34px;color:var(--osl-icon-color,rgb(var(--osl-rgb)))}
+ha-card.on.anim .icon ha-icon{animation:osl-breathe 3.2s ease-in-out infinite}
+.head{grid-area:n;min-width:0;display:flex;flex-direction:column;gap:2px}
+.name{font-weight:650;letter-spacing:-.4px;font-size:var(--osl-title,21px);line-height:1.2;color:var(--osl-title-color,#f7f9fc);overflow-wrap:anywhere}
+.status{font-size:14px;line-height:18px;color:rgba(235,241,248,.78)}
+.power{grid-area:p;display:flex;gap:8px;justify-content:flex-end}
+.pbtn{all:unset;box-sizing:border-box;cursor:pointer;flex:0 0 auto;width:var(--osl-btn,80px);height:var(--osl-btn,80px);border-radius:var(--osl-btn-radius,14px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:650;font-size:var(--osl-btn-text,14px);line-height:1.25;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1);transition:transform .12s ease,filter .12s ease;background:var(--b-bg);border:var(--b-border);color:var(--b-fg)}
+.pbtn ha-icon{--mdc-icon-size:calc(var(--osl-btn,80px) * .42);color:var(--b-fg)}
+.pbtn.icononly ha-icon{--mdc-icon-size:calc(var(--osl-btn,80px) * .5)} .pbtn.wordsonly{font-size:calc(var(--osl-btn-text,14px) * 1.25)}
 .pbtn:active{transform:scale(.96)} .pbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.pbtn.on{background:var(--osl-on-bg);border:1px solid var(--osl-on-border)} .pbtn.off{background:var(--osl-off-btn-bg);border:1px solid var(--osl-off-border)}
+.pbtn.on{--b-bg:var(--osl-on-bg);--b-border:var(--osl-on-border);--b-fg:var(--osl-on-fg,#f7f9fc)}
+.pbtn.off{--b-bg:var(--osl-off-btn-bg);--b-border:var(--osl-off-border);--b-fg:var(--osl-off-fg,#f7f9fc)}
 .pbtn[disabled]{opacity:.45;cursor:default}
-.art{grid-area:art;height:112px;border-radius:15px;overflow:hidden;pointer-events:none;--room-accent:rgb(var(--osl-rgb));--art-light:rgba(var(--osl-rgb),.95);--art-line:rgba(var(--osl-rgb),.7)}
-ha-card.on .art{background:rgba(var(--osl-rgb),.06)} ha-card.on .art .art-lights{animation:osl-art 3.6s ease-in-out infinite}
-.art svg{display:block;width:100%;height:100%}
-.master{grid-area:m;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));row-gap:10px;cursor:default}
-.dim{grid-column:1/-1;display:flex;flex-direction:column;gap:4px}
-.dimhead{display:flex;align-items:baseline;gap:7px;font:600 16px/20px Arial,sans-serif;color:#eef3fa}
+.wrap.below{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"i n" "p p" "art art" "m m"}
+.wrap.below.noicon{grid-template-columns:minmax(0,1fr);grid-template-areas:"n" "p" "art" "m"}
+.wrap.below .pbtn{flex:1 1 0;height:min(var(--osl-btn,80px),76px)}
+.art{grid-area:art;height:var(--osl-art-h,112px);border-radius:15px;overflow:hidden;pointer-events:none;--room-accent:rgb(var(--osl-rgb));--art-light:rgba(var(--osl-rgb),.95);--art-line:rgba(var(--osl-rgb),.7)}
+ha-card.on .art{background:rgba(var(--osl-rgb),.06)} ha-card.on.anim .art .art-lights{animation:osl-art 3.6s ease-in-out infinite}
+.art svg{display:block;width:100%;height:100%} .art img{display:block;width:100%;height:100%;object-fit:cover}
+.master{grid-area:m;display:grid;grid-template-columns:repeat(var(--osl-chips,5),minmax(0,1fr));row-gap:10px;cursor:default}
+.dim{grid-column:1/-1;display:flex;flex-direction:column;gap:2px}
+.dimhead{display:flex;align-items:baseline;gap:7px;font-weight:600;font-size:16px;line-height:20px;color:#eef3fa}
 .dimhead output{font-weight:650}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:56px;margin:0;background:transparent;cursor:pointer;touch-action:pan-y}
-input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(var(--osl-rgb),.95) var(--pct,0%),rgba(255,255,255,.16) var(--pct,0%))}
-input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:rgba(255,255,255,.16)}
-input[type=range]::-moz-range-progress{height:12px;border-radius:6px;background:rgba(var(--osl-rgb),.95)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;border-radius:50%;margin-top:-10px;background:rgb(var(--osl-rgb));border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
-input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:rgb(var(--osl-rgb));border:3px solid #fff}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:var(--sl-h,56px);margin:0;background:transparent;cursor:pointer;touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:var(--sl-t,12px);border-radius:999px;background:linear-gradient(90deg,var(--sl-c) var(--pct,0%),rgba(255,255,255,.16) var(--pct,0%))}
+input[type=range]::-moz-range-track{height:var(--sl-t,12px);border-radius:999px;background:rgba(255,255,255,.16)}
+input[type=range]::-moz-range-progress{height:var(--sl-t,12px);border-radius:999px;background:var(--sl-c)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:var(--sl-th,32px);height:var(--sl-th,32px);border-radius:50%;margin-top:calc((var(--sl-t,12px) - var(--sl-th,32px)) / 2);background:var(--sl-c);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+input[type=range]::-moz-range-thumb{width:calc(var(--sl-th,32px) - 6px);height:calc(var(--sl-th,32px) - 6px);border-radius:50%;background:var(--sl-c);border:3px solid #fff}
 input[type=range]:disabled{opacity:.45;cursor:default}
-.chip{all:unset;box-sizing:border-box;justify-self:center;width:min(100%,60px);height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.chip span{width:40px;height:40px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.25)}
+.chip{all:unset;box-sizing:border-box;justify-self:center;width:calc(var(--chip,40px) + 20px);max-width:100%;height:calc(var(--chip,40px) + 20px);border-radius:var(--chip-r,50%);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.chip span{width:var(--chip,40px);height:var(--chip,40px);border-radius:var(--chip-r,50%);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.25)}
 .chip:focus-visible{outline:2px solid #fff}
-.chip.wheel span{width:40px;height:40px;border-radius:50%;background:conic-gradient(red,#ff0,lime,cyan,blue,#f0f,red)}
+.chip.wheel span{background:conic-gradient(red,#ff0,lime,cyan,blue,#f0f,red)}
 .chip:active{transform:scale(.95)} .chip[disabled]{opacity:.4;cursor:default}
-.msg{grid-column:1/-1;font:13px/17px Arial,sans-serif;color:#ffd7d7;min-height:0}
+.msg{grid-column:1/-1;font-size:13px;line-height:17px;color:#ffd7d7;min-height:0}
 .msg:empty{display:none}
 @media (hover:hover) and (pointer:fine){ha-card:hover{border-color:var(--osl-hover,rgba(var(--osl-rgb),.7))}}
-@media (max-width:767px){.art{display:none}}
+@media (max-width:767px){.art:not(.phones){display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (prefers-reduced-transparency:reduce){ha-card{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgb(48,48,48)}}
 @keyframes osl-breathe{0%,100%{transform:scale(1);opacity:.84}50%{transform:scale(1.055);opacity:1}}
@@ -176,43 +188,77 @@ class OneStopRoomLightsCard extends HTMLElement {
   _render() {
     const c = this._cfg, R = this.shadowRoot;
     if (!c.area) { R.innerHTML = `<ha-card style="padding:16px">Pick a room in the card editor.</ha-card>`; return; }
-    const pad = { compact: '12px', standard: '18px', roomy: '24px' }[c.card_spacing] || '18px';
-    const radius = { square: '8px', rounded: '22px', extra_round: '32px' }[c.corners] || '22px';
-    const title = { small: '17px', medium: '21px', large: '24px', extra_large: '28px' }[c.title_size] || '21px';
-    const btn = { small: '56px', medium: '68px', large: '80px', extra_large: '96px' }[c.button_size] || '80px';
-    const bRad = { square: '6px', rounded: '14px', extra_round: '50%' }[c.button_shape] || '14px';
-    const tint = { very_soft: [.28, .30], soft: [.44, .46], medium: [.60, .62], bold: [.80, .82] }[c.button_tint] || [.44, .46];
-    const glow = { subtle: [.13, .06, .2], normal: [.25, .12, .34], strong: [.42, .24, .5] }[c.on_glow] || [.25, .12, .34];
+    const pick = (map, key, dflt) => map[key] ?? map[dflt];
+    const padPx = pick({ compact: 12, standard: 18, roomy: 24 }, c.card_spacing, 'standard');
+    const radius = pick({ square: '8px', rounded: '22px', extra_round: '32px' }, c.corners, 'rounded');
+    const title = pick({ small: '17px', medium: '21px', large: '24px', extra_large: '28px' }, c.title_size, 'medium');
+    const btnPx = pick({ small: 56, medium: 68, large: 80, extra_large: 96 }, c.button_size, 'large');
+    const bRad = pick({ square: '6px', rounded: '14px', extra_round: '50%' }, c.button_shape, 'rounded');
+    const bText = pick({ small: '12px', medium: '14px', large: '17px' }, c.button_text_size, 'medium');
+    const tint = pick({ very_soft: [.28, .30], soft: [.44, .46], medium: [.60, .62], bold: [.80, .82] }, c.button_tint, 'soft');
+    const glow = pick({ subtle: [.13, .06, .2], normal: [.25, .12, .34], strong: [.42, .24, .5] }, c.on_glow, 'normal');
+    const font = pick({ classic: 'Arial,Helvetica,sans-serif', theme: 'var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Roboto,sans-serif))', rounded: "ui-rounded,'SF Pro Rounded','Nunito','Varela Round',system-ui,sans-serif" }, c.font, 'classic');
+    const slider = pick({ thin: [44, 6, 22], standard: [56, 12, 32], thick: [64, 20, 40] }, c.slider_size, 'standard');
+    const chip = pick({ small: '32px', medium: '40px', large: '48px' }, c.chip_size, 'medium');
+    const artH = pick({ small: '84px', medium: '112px', large: '150px' }, c.picture_size, 'medium');
     const onC = okRgb(c.on_color) ? c.on_color : DEFAULTS.on_color, offC = okRgb(c.off_color) ? c.off_color : DEFAULTS.off_color;
-    const offBg = { theme: 'var(--bubble-button-main-background-color,var(--bubble-main-background-color,var(--background-color-2,var(--ha-card-background,var(--card-background-color,var(--secondary-background-color))))))', darker: 'rgba(14,16,21,.88)', lighter: 'rgba(84,90,102,.72)', custom: okRgb(c.off_custom_color) ? rgba(c.off_custom_color, .82) : 'var(--secondary-background-color)' }[c.off_background];
-    const vars = [`--osl-pad:${pad}`, `--osl-radius:${radius}`, `--osl-title:${title}`, `--osl-btn:${btn}`, `--osl-btn-radius:${bRad}`,
-      `--osl-on-bg:${rgba(onC, tint[0])}`, `--osl-on-border:${rgba(onC.map(v => Math.min(255, v + 60)), .7)}`,
-      `--osl-off-btn-bg:${rgba(offC, tint[1])}`, `--osl-off-border:${rgba(offC.map(v => Math.min(255, v + 60)), .7)}`,
-      `--osl-glow-a:${glow[0]}`, `--osl-glow-b:${glow[1]}`, `--osl-glow-border:${glow[2]}`, `--osl-off-bg:${offBg}`];
+    const lift = (col, n) => col.map(v => Math.min(255, v + n));
+    const btnLook = (col, a) => ({
+      tinted: [rgba(col, a), `1px solid ${rgba(lift(col, 60), .7)}`, '#f7f9fc'],
+      solid: [rgba(col, 1), `1px solid ${rgba(lift(col, 40), .9)}`, '#ffffff'],
+      outline: ['transparent', `2px solid ${rgba(lift(col, 70), .95)}`, rgba(lift(col, 90), 1)],
+      glass: ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', rgba(lift(col, 90), 1)],
+    }[c.button_style] || null);
+    const onLook = btnLook(onC, tint[0]) || btnLook(onC, tint[0]), offLook = btnLook(offC, tint[1]);
+    const offBg = { theme: 'var(--bubble-button-main-background-color,var(--bubble-main-background-color,var(--background-color-2,var(--ha-card-background,var(--card-background-color,var(--secondary-background-color))))))', darker: 'rgba(14,16,21,.88)', lighter: 'rgba(84,90,102,.72)', custom: okRgb(c.off_custom_color) ? rgba(c.off_custom_color, .82) : 'var(--secondary-background-color)' }[c.off_background] || 'var(--secondary-background-color)';
+    const vars = [`--osl-pad:${padPx}px`, `--osl-radius:${radius}`, `--osl-title:${title}`, `--osl-btn:${btnPx}px`, `--osl-btn-radius:${bRad}`, `--osl-btn-text:${bText}`, `--osl-font:${font}`,
+      `--osl-on-bg:${onLook[0]}`, `--osl-on-border:${onLook[1]}`, `--osl-on-fg:${onLook[2]}`,
+      `--osl-off-btn-bg:${offLook[0]}`, `--osl-off-border:${offLook[1]}`, `--osl-off-fg:${offLook[2]}`,
+      `--osl-glow-a:${glow[0]}`, `--osl-glow-b:${glow[1]}`, `--osl-glow-border:${glow[2]}`, `--osl-off-bg:${offBg}`,
+      `--sl-h:${slider[0]}px`, `--sl-t:${slider[1]}px`, `--sl-th:${slider[2]}px`,
+      `--sl-c:${c.slider_colour === 'custom' && okRgb(c.slider_custom_color) ? rgba(c.slider_custom_color, 1) : c.slider_colour === 'white' ? '#f2f5f9' : 'rgba(var(--osl-rgb),.95)'}`,
+      `--chip:${chip}`, `--chip-r:${c.chip_shape === 'rounded' ? '30%' : '50%'}`, `--osl-art-h:${artH}`];
     if (okRgb(c.title_color) && !same(c.title_color, DEFAULTS.title_color)) vars.push(`--osl-title-color:${rgba(c.title_color, 1)}`);
     if (okRgb(c.hover_color) && !same(c.hover_color, DEFAULTS.hover_color)) vars.push(`--osl-hover:${rgba(c.hover_color, .8)}`);
-    const presets = [c.preset_1, c.preset_2, c.preset_3, c.preset_4].map(k => String(k));
-    const pic = c.show_picture ? this._picture() : '';
-    R.innerHTML = `<style>${CARD_CSS}</style>
-<ha-card style="${vars.join(';')}" role="button" tabindex="0" aria-label="${esc(this._title())} lights">
- <div class="wrap">
+    if (c.icon_color === 'custom' && okRgb(c.icon_custom_color)) vars.push(`--osl-icon-color:${rgba(c.icon_custom_color, 1)}`, `--osl-icon-bg:${rgba(c.icon_custom_color, .12)}`);
+    else if (c.icon_color === 'white') vars.push('--osl-icon-color:#f7f9fc', '--osl-icon-bg:rgba(255,255,255,.08)');
+    if (!c.icon_background) vars.push('--osl-icon-bg:transparent');
+    // chips: white buttons, colour buttons, colour wheel
+    const whites = c.show_presets ? [c.preset_1, c.preset_2, c.preset_3, c.preset_4].map(k => String(k)).filter(k => k && k !== 'none') : [];
+    const colours = c.show_presets ? [c.colour_1, c.colour_2, c.colour_3].slice(0, Math.max(0, Math.min(3, +c.colour_count || 0))).filter(okRgb) : [];
+    const chipCount = whites.length + colours.length + (c.show_wheel ? 1 : 0);
+    vars.push(`--osl-chips:${Math.max(1, chipCount)}`);
+    // where the On/Off buttons go: beside the title, or underneath when the card is narrow
+    const iconW = c.show_icon ? 44 + 12 : 0;
+    const needed = iconW + 150 + 12 + btnPx * 2 + 8;   // container width is measured inside the padding
+    const belowCss = c.button_position === 'auto' ? `@container osl (max-width:${needed}px){.wrap{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"i n" "p p" "art art" "m m"}.wrap.noicon{grid-template-columns:minmax(0,1fr);grid-template-areas:"n" "p" "art" "m"}.wrap .pbtn{flex:1 1 0;height:min(var(--osl-btn,80px),76px)}}` : '';
+    const content = c.button_content || 'icon_words';
+    const btnInner = (icon, text) => `${content !== 'words' ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ''}${content !== 'icon' ? `<span>${esc(text)}</span>` : ''}`;
+    const btnCls = content === 'icon' ? 'icononly' : content === 'words' ? 'wordsonly' : '';
+    let pic = '';
+    if (c.show_picture) pic = c.picture === 'custom' ? (c.picture_url ? `<img src="${esc(c.picture_url)}" alt="">` : '') : this._picture();
+    const wrapCls = ['wrap', c.show_icon ? '' : 'noicon', c.button_position === 'below' ? 'below' : ''].join(' ');
+    R.innerHTML = `<style>${CARD_CSS}${belowCss}</style>
+<ha-card class="${c.animations ? 'anim' : ''}" style="${vars.join(';')}" role="button" tabindex="0" aria-label="${esc(this._title())} lights">
+ <div class="${wrapCls}">
   <div class="icon ${c.show_icon ? '' : 'hide'}"><ha-icon></ha-icon></div>
-  <div class="name"></div>
+  <div class="head"><div class="name"></div><div class="status ${c.show_status ? '' : 'hide'}"></div></div>
   <div class="power ${c.show_buttons ? '' : 'hide'}">
-   <button class="pbtn on" data-act="on" aria-label="Turn ${esc(this._title())} lights on"><ha-icon icon="${esc(c.on_icon)}"></ha-icon><span>${esc(c.on_text)}</span></button>
-   <button class="pbtn off" data-act="off" aria-label="Turn ${esc(this._title())} lights off"><ha-icon icon="${esc(c.off_icon)}"></ha-icon><span>${esc(c.off_text)}</span></button>
+   <button class="pbtn on ${btnCls}" data-act="on" aria-label="Turn ${esc(this._title())} lights on">${btnInner(c.on_icon, c.on_text)}</button>
+   <button class="pbtn off ${btnCls}" data-act="off" aria-label="Turn ${esc(this._title())} lights off">${btnInner(c.off_icon, c.off_text)}</button>
   </div>
-  <div class="art ${pic ? '' : 'hide'}">${pic}</div>
-  <div class="master ${c.show_brightness || c.show_presets || c.show_wheel ? '' : 'hide'}">
-   <div class="dim ${c.show_brightness ? '' : 'hide'}"><div class="dimhead"><span>Brightness</span><output></output></div>
+  <div class="art ${pic ? '' : 'hide'} ${c.picture_on_phones ? 'phones' : ''}">${pic}</div>
+  <div class="master ${c.show_brightness || chipCount ? '' : 'hide'}">
+   <div class="dim ${c.show_brightness ? '' : 'hide'}"><div class="dimhead ${c.show_brightness_words ? '' : 'hide'}"><span>Brightness</span><output></output></div>
     <input type="range" min="0" max="100" step="1" aria-label="${esc(this._title())} brightness"></div>
-   ${presets.map((k, i) => `<button class="chip preset ${c.show_presets ? '' : 'hide'}" data-k="${esc(k)}" title="${esc((PRESETS[k] || ['White'])[0])} · ${esc(k)} K" aria-label="${esc((PRESETS[k] || ['White'])[0])} ${esc(k)} kelvin"><span style="background:${(PRESETS[k] || [, '#ffe4ce'])[1]}"></span></button>`).join('')}
+   ${whites.map(k => `<button class="chip preset" data-k="${esc(k)}" title="${esc((PRESETS[k] || ['White'])[0])} · ${esc(k)} K" aria-label="${esc((PRESETS[k] || ['White'])[0])} ${esc(k)} kelvin"><span style="background:${(PRESETS[k] || [, '#ffe4ce'])[1]}"></span></button>`).join('')}
+   ${colours.map(col => `<button class="chip fav" data-rgb="${col.join(',')}" title="Colour" aria-label="Set colour"><span style="background:${rgba(col, 1)}"></span></button>`).join('')}
    <button class="chip wheel ${c.show_wheel ? '' : 'hide'}" title="More colours" aria-label="More colours"><span></span></button>
    <div class="msg" aria-live="polite"></div>
   </div>
  </div>
 </ha-card>`;
-    this._el = { card: R.querySelector('ha-card'), icon: R.querySelector('.icon ha-icon'), name: R.querySelector('.name'), range: R.querySelector('input[type=range]'), out: R.querySelector('output'), msg: R.querySelector('.msg'), on: R.querySelector('[data-act=on]'), off: R.querySelector('[data-act=off]') };
+    this._el = { card: R.querySelector('ha-card'), icon: R.querySelector('.icon ha-icon'), name: R.querySelector('.name'), status: R.querySelector('.status'), range: R.querySelector('input[type=range]'), out: R.querySelector('output'), msg: R.querySelector('.msg'), on: R.querySelector('[data-act=on]'), off: R.querySelector('[data-act=off]') };
     this._wire();
     this._built = true;
     this._update();
@@ -226,6 +272,8 @@ class OneStopRoomLightsCard extends HTMLElement {
     on.addEventListener('click', () => this._power(true));
     off.addEventListener('click', () => this._power(false));
     this.shadowRoot.querySelectorAll('.preset').forEach(b => b.addEventListener('click', () => this._applyColour({ color_temp_kelvin: +b.dataset.k })));
+    this.shadowRoot.querySelectorAll('.fav').forEach(b => b.addEventListener('click', () => this._applyColour({ rgb_color: b.dataset.rgb.split(',').map(Number) })));
+    if (this._cfg.haptics) this.shadowRoot.querySelectorAll('button').forEach(b => b.addEventListener('click', () => this._haptic()));
     this.shadowRoot.querySelector('.wheel').addEventListener('click', () => this._openColour());
     // live brightness while dragging (throttled), final value on release
     let last = 0, timer = null, sent = null;
@@ -245,6 +293,7 @@ class OneStopRoomLightsCard extends HTMLElement {
     card.addEventListener('click', () => { if (held) { held = false; return; } this._action(this._cfg.tap, this._cfg.tap_page); });
     card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._action(this._cfg.tap, this._cfg.tap_page); } });
   }
+  _haptic() { window.dispatchEvent(new CustomEvent('haptic', { detail: 'light' })); }
   _action(kind, page) {
     if (kind === 'popup') return this._openPopup();
     if (kind === 'page' && page) { history.pushState(null, '', page); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); }
@@ -268,6 +317,10 @@ class OneStopRoomLightsCard extends HTMLElement {
     this._el.card.classList.toggle('on', active);
     this._el.icon.setAttribute('icon', this._icon());
     this._el.name.textContent = this._title();
+    if (c.show_status) {
+      const n = onStates.length, total = states.length;
+      this._el.status.textContent = !total ? 'No lights found' : n === 0 ? 'All off' : n === total ? (total === 1 ? 'On' : `All ${total} on`) : `${n} of ${total} on`;
+    }
     const targets = onTargets(h, c, members);
     this._el.on.disabled = !targets.length;
     this._el.off.disabled = !states.some(live);
@@ -278,6 +331,7 @@ class OneStopRoomLightsCard extends HTMLElement {
     this._el.range.disabled = !states.some(st => live(st) && dimmable(st));
     const tempOk = states.some(st => live(st) && supportsTemp(st)), colOk = states.some(st => live(st) && supportsColour(st));
     this.shadowRoot.querySelectorAll('.preset').forEach(b => { b.disabled = !tempOk; });
+    this.shadowRoot.querySelectorAll('.fav').forEach(b => { b.disabled = !colOk; });
     this.shadowRoot.querySelector('.wheel').disabled = !(colOk || tempOk);
   }
   _paintRange(v) { this._el.range.style.setProperty('--pct', v + '%'); this._el.out.textContent = v + '%'; }
@@ -422,79 +476,117 @@ class OneStopRoomLightsPopup extends HTMLElement {
 /* ---------------- visual editor ---------------- */
 const sel = opts => ({ select: { mode: 'dropdown', options: opts.map(([value, label]) => ({ value, label })) } });
 const toggle = { boolean: {} };
-const presetChoices = sel(Object.entries(PRESETS).map(([k, [n]]) => [k, `${n} (${k} K)`]));
-const schema = d => [
+const presetChoices = sel([...Object.entries(PRESETS).map(([k, [n]]) => [k, `${n} (${k} K)`]), ['none', 'No button']]);
+const schema = d => {
+  const grid = items => ({ type: 'grid', name: '', flatten: true, schema: items });
+  const section = (name, title, icon, items) => ({ name, type: 'expandable', flatten: true, title, icon, schema: items });
+  const size4 = sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]);
+  return [
   { name: 'area', required: true, selector: { area: {} } },
-  { name: 'name', selector: { text: {} } },
-  { name: 'room_icon', selector: { icon: {} } },
-  { name: 'g_lights', type: 'expandable', flatten: true, title: 'Which lights', icon: 'mdi:lightbulb-group-outline', schema: [
+  grid([{ name: 'name', selector: { text: {} } }, { name: 'room_icon', selector: { icon: {} } }]),
+  section('g_lights', 'Which lights', 'mdi:lightbulb-group-outline', [
     { name: 'on_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
     { name: 'extra_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
     { name: 'hide_lights', selector: { entity: { multiple: true, filter: { domain: 'light' } } } },
     { name: 'wake_brightness', selector: { number: { min: 5, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } } },
-  ] },
-  { name: 'g_show', type: 'expandable', flatten: true, title: 'What to show', icon: 'mdi:eye-outline', schema: [
-    { type: 'grid', name: '', flatten: true, schema: [
-      { name: 'show_icon', selector: toggle }, { name: 'show_buttons', selector: toggle },
-      { name: 'show_picture', selector: toggle }, { name: 'show_brightness', selector: toggle },
-      { name: 'show_presets', selector: toggle }, { name: 'show_wheel', selector: toggle },
-    ] },
-    ...(d.show_picture ? [{ name: 'picture', selector: sel(Object.entries(PICTURE_NAMES).filter(([k]) => k !== 'none')) }, { name: 'picture_caption', selector: { text: {} } }] : []),
-  ] },
-  { name: 'g_look', type: 'expandable', flatten: true, title: 'Look and size', icon: 'mdi:palette-outline', schema: [
-    { type: 'grid', name: '', flatten: true, schema: [
-      { name: 'card_spacing', selector: sel([['compact', 'Compact'], ['standard', 'Standard'], ['roomy', 'Roomy']]) },
-      { name: 'corners', selector: sel([['square', 'Square'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
-      { name: 'title_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
-      { name: 'title_color', selector: { color_rgb: {} } },
-      { name: 'off_background', selector: sel([['theme', 'Match my other cards'], ['darker', 'Darker'], ['lighter', 'Lighter'], ['custom', 'My own colour']]) },
-      ...(d.off_background === 'custom' ? [{ name: 'off_custom_color', selector: { color_rgb: {} } }] : []),
-      { name: 'on_glow', selector: sel([['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
-      { name: 'follow_light_colour', selector: toggle },
-      { name: 'hover_color', selector: { color_rgb: {} } },
-    ] },
-  ] },
-  { name: 'g_buttons', type: 'expandable', flatten: true, title: 'On and Off buttons', icon: 'mdi:gesture-tap-button', schema: [
-    { type: 'grid', name: '', flatten: true, schema: [
-      { name: 'button_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['extra_large', 'Extra large']]) },
-      { name: 'button_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Circle']]) },
-      { name: 'button_tint', selector: sel([['very_soft', 'Very soft'], ['soft', 'Soft'], ['medium', 'Medium'], ['bold', 'Bold']]) },
-      { name: 'on_color', selector: { color_rgb: {} } }, { name: 'off_color', selector: { color_rgb: {} } },
-      { name: 'on_text', selector: { text: {} } }, { name: 'off_text', selector: { text: {} } },
-      { name: 'on_icon', selector: { icon: {} } }, { name: 'off_icon', selector: { icon: {} } },
-    ] },
-  ] },
-  { name: 'g_presets', type: 'expandable', flatten: true, title: 'White light buttons', icon: 'mdi:white-balance-sunny', schema: [
-    { type: 'grid', name: '', flatten: true, schema: [
+  ]),
+  section('g_show', 'What to show', 'mdi:eye-outline', [grid([
+    { name: 'show_icon', selector: toggle }, { name: 'show_status', selector: toggle },
+    { name: 'show_buttons', selector: toggle }, { name: 'show_picture', selector: toggle },
+    { name: 'show_brightness', selector: toggle }, { name: 'show_brightness_words', selector: toggle },
+    { name: 'show_presets', selector: toggle }, { name: 'show_wheel', selector: toggle },
+  ])]),
+  section('g_layout', 'Layout and text', 'mdi:page-layout-header', [grid([
+    { name: 'button_position', selector: sel([['auto', 'Beside the title (moves under on small screens)'], ['beside', 'Always beside the title'], ['below', 'Always under the title']]) },
+    { name: 'card_spacing', selector: sel([['compact', 'Compact'], ['standard', 'Standard'], ['roomy', 'Roomy']]) },
+    { name: 'corners', selector: sel([['square', 'Square'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
+    { name: 'font', selector: sel([['classic', 'Classic'], ['theme', 'Same as Home Assistant'], ['rounded', 'Rounded']]) },
+    { name: 'title_size', selector: size4 },
+    { name: 'title_color', selector: { color_rgb: {} } },
+  ])]),
+  section('g_colours', 'Colours and glow', 'mdi:palette-outline', [grid([
+    { name: 'off_background', selector: sel([['theme', 'Match my other cards'], ['darker', 'Darker'], ['lighter', 'Lighter'], ['custom', 'My own colour']]) },
+    ...(d.off_background === 'custom' ? [{ name: 'off_custom_color', selector: { color_rgb: {} } }] : []),
+    { name: 'on_glow', selector: sel([['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
+    { name: 'follow_light_colour', selector: toggle },
+    { name: 'icon_color', selector: sel([['lights', 'Match the lights'], ['white', 'White'], ['custom', 'My own colour']]) },
+    ...(d.icon_color === 'custom' ? [{ name: 'icon_custom_color', selector: { color_rgb: {} } }] : []),
+    { name: 'icon_background', selector: toggle },
+    { name: 'hover_color', selector: { color_rgb: {} } },
+    { name: 'animations', selector: toggle },
+  ])]),
+  section('g_buttons', 'On and Off buttons', 'mdi:gesture-tap-button', [grid([
+    { name: 'button_size', selector: size4 },
+    { name: 'button_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Circle']]) },
+    { name: 'button_style', selector: sel([['tinted', 'Soft colour'], ['solid', 'Solid colour'], ['outline', 'Outline'], ['glass', 'Clear glass']]) },
+    ...(d.button_style === 'tinted' ? [{ name: 'button_tint', selector: sel([['very_soft', 'Very soft'], ['soft', 'Soft'], ['medium', 'Medium'], ['bold', 'Bold']]) }] : []),
+    { name: 'button_content', selector: sel([['icon_words', 'Icon and words'], ['icon', 'Icon only'], ['words', 'Words only']]) },
+    { name: 'button_text_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]) },
+    { name: 'on_color', selector: { color_rgb: {} } }, { name: 'off_color', selector: { color_rgb: {} } },
+    { name: 'on_text', selector: { text: {} } }, { name: 'off_text', selector: { text: {} } },
+    { name: 'on_icon', selector: { icon: {} } }, { name: 'off_icon', selector: { icon: {} } },
+  ])]),
+  section('g_slider', 'Brightness slider', 'mdi:tune-variant', [grid([
+    { name: 'slider_size', selector: sel([['thin', 'Thin'], ['standard', 'Standard'], ['thick', 'Thick']]) },
+    { name: 'slider_colour', selector: sel([['lights', 'Match the lights'], ['white', 'White'], ['custom', 'My own colour']]) },
+    ...(d.slider_colour === 'custom' ? [{ name: 'slider_custom_color', selector: { color_rgb: {} } }] : []),
+  ])]),
+  section('g_presets', 'Light colour buttons', 'mdi:white-balance-sunny', [
+    grid([
+      { name: 'chip_shape', selector: sel([['circle', 'Circles'], ['rounded', 'Rounded squares']]) },
+      { name: 'chip_size', selector: sel([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]) },
       { name: 'preset_1', selector: presetChoices }, { name: 'preset_2', selector: presetChoices },
       { name: 'preset_3', selector: presetChoices }, { name: 'preset_4', selector: presetChoices },
-    ] },
-  ] },
-  { name: 'g_actions', type: 'expandable', flatten: true, title: 'Tap and hold', icon: 'mdi:gesture-tap', schema: [
+    ]),
+    { name: 'colour_count', selector: sel([['0', 'None'], ['1', '1'], ['2', '2'], ['3', '3']]) },
+    grid([
+      ...(+d.colour_count >= 1 ? [{ name: 'colour_1', selector: { color_rgb: {} } }] : []),
+      ...(+d.colour_count >= 2 ? [{ name: 'colour_2', selector: { color_rgb: {} } }] : []),
+      ...(+d.colour_count >= 3 ? [{ name: 'colour_3', selector: { color_rgb: {} } }] : []),
+    ]),
+  ]),
+  section('g_picture', 'Room picture', 'mdi:image-outline', [grid([
+    { name: 'picture', selector: sel([...Object.entries(PICTURE_NAMES).filter(([k]) => k !== 'none'), ['custom', 'My own picture']]) },
+    ...(d.picture === 'custom' ? [{ name: 'picture_url', selector: { text: {} } }] : [{ name: 'picture_caption', selector: { text: {} } }]),
+    { name: 'picture_size', selector: sel([['small', 'Short'], ['medium', 'Standard'], ['large', 'Tall']]) },
+    { name: 'picture_on_phones', selector: toggle },
+  ])]),
+  section('g_actions', 'Tap and hold', 'mdi:gesture-tap', [
     { name: 'tap', selector: sel([['popup', 'Show each light in a pop-up'], ['page', 'Go to a page'], ['none', 'Do nothing']]) },
     ...(d.tap === 'page' ? [{ name: 'tap_page', selector: { navigation: {} } }] : []),
     { name: 'hold', selector: sel([['popup', 'Show each light in a pop-up'], ['page', 'Go to a page'], ['none', 'Do nothing']]) },
     ...(d.hold === 'page' ? [{ name: 'hold_page', selector: { navigation: {} } }] : []),
-  ] },
-];
+    { name: 'haptics', selector: toggle },
+  ]),
+  ];
+};
 const LABELS = {
-  area: 'Room', name: 'Card title (leave empty to use the room name)', room_icon: 'Room icon',
+  area: 'Room', name: 'Card title', room_icon: 'Room icon',
   on_lights: 'Lights the On button turns on (empty = all lights in the room)', extra_lights: 'Add lights from other rooms', hide_lights: 'Leave these lights out',
   wake_brightness: 'Brightness when a colour turns the room on',
-  show_icon: 'Room icon', show_buttons: 'On / Off buttons', show_picture: 'Room picture (tablets & computers)', show_brightness: 'Brightness slider', show_presets: 'White light buttons', show_wheel: 'Colour button',
-  picture: 'Picture', picture_caption: 'Words on the picture',
-  card_spacing: 'Spacing inside the card', corners: 'Card corners', title_size: 'Title size', title_color: 'Title colour',
+  show_icon: 'Room icon', show_status: 'How many lights are on', show_buttons: 'On / Off buttons', show_picture: 'Room picture',
+  show_brightness: 'Brightness slider', show_brightness_words: 'Brightness words and %', show_presets: 'Light colour buttons', show_wheel: 'Colour wheel button',
+  button_position: 'Where the On / Off buttons go', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style',
+  title_size: 'Title size', title_color: 'Title colour',
   off_background: 'Background when the lights are off', off_custom_color: 'Your background colour', on_glow: 'Glow when the lights are on', follow_light_colour: 'Glow matches the light colour',
-  hover_color: 'Edge colour on mouse-over (grey = follow the lights)',
-  button_size: 'Button size', button_shape: 'Button shape', button_tint: 'Button colour strength',
+  icon_color: 'Room icon colour', icon_custom_color: 'Your icon colour', icon_background: 'Shaded box behind the icon',
+  hover_color: 'Edge colour on mouse-over (grey = follow the lights)', animations: 'Gentle animations',
+  button_size: 'Button size', button_shape: 'Button shape', button_style: 'Button style', button_tint: 'Colour strength',
+  button_content: 'What the buttons show', button_text_size: 'Button word size',
   on_color: 'On button colour', off_color: 'Off button colour', on_text: 'On button words', off_text: 'Off button words', on_icon: 'On button icon', off_icon: 'Off button icon',
-  preset_1: 'Button 1', preset_2: 'Button 2', preset_3: 'Button 3', preset_4: 'Button 4',
-  tap: 'When you tap the card', tap_page: 'Page to open on tap', hold: 'When you press and hold', hold_page: 'Page to open on hold',
+  slider_size: 'Slider thickness', slider_colour: 'Slider colour', slider_custom_color: 'Your slider colour',
+  chip_shape: 'Button shape', chip_size: 'Button size',
+  preset_1: 'White button 1', preset_2: 'White button 2', preset_3: 'White button 3', preset_4: 'White button 4',
+  colour_count: 'Extra colour buttons', colour_1: 'Colour button 1', colour_2: 'Colour button 2', colour_3: 'Colour button 3',
+  picture: 'Picture', picture_url: 'Picture web address (or /local/… file)', picture_caption: 'Words on the picture', picture_size: 'Picture height', picture_on_phones: 'Show on phones too',
+  tap: 'When you tap the card', tap_page: 'Page to open on tap', hold: 'When you press and hold', hold_page: 'Page to open on hold', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
+  name: 'Leave empty to use the room’s name.',
   on_lights: 'Tip: choose the room’s light group here so everything turns on together.',
-  hide_lights: 'Hidden lights stay out of the pop-up, the colour glow and the buttons.',
+  hide_lights: 'Left-out lights stay out of the pop-up, the glow and the buttons.',
   picture_caption: 'Leave empty to keep the standard wording.',
+  colour_count: 'Adds your own colour buttons next to the white ones.',
 };
 
 class OneStopRoomLightsCardEditor extends HTMLElement {
@@ -514,6 +606,10 @@ class OneStopRoomLightsCardEditor extends HTMLElement {
           if (Array.isArray(val) && !val.length && !okRgb(val)) continue;
           if (k in DEFAULTS && same(val, DEFAULTS[k])) continue;          // keep the saved settings short
           if (k === 'off_custom_color' && v.off_background !== 'custom') continue;
+          if (k === 'icon_custom_color' && v.icon_color !== 'custom') continue;
+          if (k === 'slider_custom_color' && v.slider_colour !== 'custom') continue;
+          if (/^colour_[123]$/.test(k) && +k.slice(-1) > +(v.colour_count || 0)) continue;
+          if (k === 'picture_url' && v.picture !== 'custom') continue;
           if (k === 'tap_page' && v.tap !== 'page') continue;
           if (k === 'hold_page' && v.hold !== 'page') continue;
           out[k] = val;
