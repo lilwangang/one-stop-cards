@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -107,18 +107,21 @@ const Shared = {
   data: null, loading: null, listeners: new Set(), subscribed: false,
   get(hass) {
     if (this.data) return Promise.resolve(this.data);
-    if (!this.loading) this.loading = this._fetch(hass).then(d => { this.data = d; this._subscribe(hass); return d; });
+    if (!this.data) { try { const c = JSON.parse(localStorage.getItem('one-stop-cards-style') || 'null'); if (c) this.data = c; } catch (e) {} }
+    if (this.data && !this.loading) { this.loading = this._fetch(hass).then(d => { const changed = !same(d, this.data); this.data = d; this._cache(); this._subscribe(hass); if (changed) this.listeners.forEach(fn => fn(d)); return d; }); return Promise.resolve(this.data); }
+    if (!this.loading) this.loading = this._fetch(hass).then(d => { this.data = d; this._cache(); this._subscribe(hass); return d; });
     return this.loading;
   },
   async _fetch(hass) {
     try { const cfg = await hass.callWS({ type: 'lovelace/config', url_path: STYLE_DASH, force: true }); return cfg?.one_stop || {}; }
     catch (e) { return {}; }
   },
+  _cache() { try { localStorage.setItem('one-stop-cards-style', JSON.stringify(this.data || {})); } catch (e) {} },
   _subscribe(hass) {
     if (this.subscribed || !hass?.connection) return; this.subscribed = true;
     hass.connection.subscribeEvents(async ev => {
       if (ev?.data?.url_path !== STYLE_DASH) return;
-      this.data = await this._fetch(hass); this.listeners.forEach(fn => fn(this.data));
+      this.data = await this._fetch(hass); this._cache(); this.listeners.forEach(fn => fn(this.data));
     }, 'lovelace_updated').catch(() => {});
   },
   async save(hass, section, values) {
@@ -129,7 +132,7 @@ const Shared = {
     cfg = cfg && cfg.views ? cfg : { views: [{ title: 'One Stop Cards', cards: [{ type: 'markdown', content: '## One Stop Cards\nShared styles for One Stop cards live here. Change them from any card’s editor with **Master edit** turned on.' }] }] };
     cfg.one_stop = { ...(cfg.one_stop || {}), [section]: values };
     await hass.callWS({ type: 'lovelace/config/save', url_path: STYLE_DASH, config: cfg });
-    this.data = cfg.one_stop; this.listeners.forEach(fn => fn(this.data));
+    this.data = cfg.one_stop; this._cache(); this.listeners.forEach(fn => fn(this.data));
   },
 };
 
@@ -222,9 +225,12 @@ class OneStopRoomLightsCard extends HTMLElement {
     this._built = false;
     if (this._hass) this._render();
   }
-  _merge() { this._cfg = { ...DEFAULTS, ...((Shared.data || {}).room_lights || {}), ...this._raw }; }
+  _merge() {
+    if (!Shared.data) { try { const c = JSON.parse(localStorage.getItem('one-stop-cards-style') || 'null'); if (c) Shared.data = c; } catch (e) {} }
+    this._cfg = { ...DEFAULTS, ...((Shared.data || {}).room_lights || {}), ...this._raw };
+  }
   connectedCallback() {
-    this._onShared = () => { this._merge(); this._built = false; if (this._hass) this._render(); };
+    this._onShared = () => { const before = JSON.stringify(this._cfg); this._merge(); if (JSON.stringify(this._cfg) === before && this._built) return; this._built = false; if (this._hass) this._render(); };
     Shared.listeners.add(this._onShared);
   }
   set hass(hass) {
@@ -277,7 +283,7 @@ class OneStopRoomLightsCard extends HTMLElement {
       glass: ['rgba(255,255,255,.08)', '1px solid rgba(255,255,255,.2)', rgba(lift(col, 90), 1)],
     }[c.button_style] || null);
     const onLook = btnLook(onC, tint[0]) || btnLook(onC, tint[0]), offLook = btnLook(offC, tint[1]);
-    const offBg = { theme: 'var(--bubble-button-main-background-color,var(--bubble-main-background-color,var(--background-color-2,var(--ha-card-background,var(--card-background-color,var(--secondary-background-color))))))', darker: 'rgba(14,16,21,.88)', lighter: 'rgba(84,90,102,.72)', custom: okRgb(c.off_custom_color) ? rgba(c.off_custom_color, .82) : 'var(--secondary-background-color)' }[c.off_background] || 'var(--secondary-background-color)';
+    const offBg = { theme: 'var(--bubble-button-main-background-color,var(--bubble-main-background-color,var(--background-color-2,var(--ha-card-background,var(--card-background-color,var(--secondary-background-color))))))', darker: 'rgba(14,16,21,.50)', lighter: 'rgba(120,128,142,.30)', custom: okRgb(c.off_custom_color) ? rgba(c.off_custom_color, .55) : 'var(--secondary-background-color)' }[c.off_background] || 'var(--secondary-background-color)';
     const vars = [`--osl-pad:${padPx}px`, `--osl-radius:${radius}`, `--osl-title:${title}`, `--osl-btn:${btnPx}px`, `--osl-btn-radius:${bRad}`, `--osl-btn-text:${bText}`, `--osl-font:${font}`,
       `--osl-on-bg:${onLook[0]}`, `--osl-on-border:${onLook[1]}`, `--osl-on-fg:${onLook[2]}`,
       `--osl-off-btn-bg:${offLook[0]}`, `--osl-off-border:${offLook[1]}`, `--osl-off-fg:${offLook[2]}`,
@@ -639,7 +645,7 @@ const schema = d => {
     { name: 'title_color', selector: { color_rgb: {} } },
   ])]),
   section('g_colours', 'Colours and glow', 'mdi:palette-outline', [grid([
-    { name: 'off_background', selector: sel([['theme', 'Match my other cards'], ['darker', 'Darker'], ['lighter', 'Lighter'], ['custom', 'My own colour']]) },
+    { name: 'off_background', selector: sel([['theme', 'Clear frosted glass'], ['darker', 'Darker frosted glass'], ['lighter', 'Lighter frosted glass'], ['custom', 'Frosted glass in my own colour']]) },
     ...(d.off_background === 'custom' ? [{ name: 'off_custom_color', selector: { color_rgb: {} } }] : []),
     { name: 'on_glow', selector: sel([['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]) },
     { name: 'follow_light_colour', selector: toggle },
