@@ -900,7 +900,7 @@ window.__oneStopRoomLights = { roomLights, kelvinToRgb, DEFAULTS, VERSION, Share
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const TAG = 'one-stop-shades-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -1099,13 +1099,13 @@ button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-colo
 button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .hide{display:none!important}
-.head{display:flex;align-items:center;gap:12px;min-width:0}
+.head{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;min-width:0}
 .ricon{flex:none;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(var(--fill),.18)}
 .ricon ha-icon{--mdc-icon-size:28px;color:rgb(var(--fill-light,120,180,230))}
-.title{flex:1;min-width:0}
+.title{flex:1 1 120px;min-width:0}
 .name{font-weight:650;letter-spacing:-.4px;font-size:21px;line-height:1.2;overflow-wrap:anywhere}
 .sub{font-size:14px;line-height:18px;color:rgba(235,241,248,.78)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
 .chip{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 10px;border-radius:999px;font-size:15px;font-weight:600;background:rgba(219,93,96,.24);border:1px solid rgba(219,93,96,.45)}
 .chip.h{background:rgba(83,145,215,.26);border-color:rgba(83,145,215,.5)}
 .chip ha-icon{--mdc-icon-size:18px}
@@ -1197,6 +1197,12 @@ button:active{transform:scale(.96)} button[disabled]{opacity:.4;cursor:default}
 .L-columns .col{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0}
 .L-columns .col .cn{font-size:14px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .L-columns .left{display:flex;flex-direction:column;gap:12px}
+@container oss (max-width:380px){
+  .chips{width:100%;justify-content:flex-start;margin-left:0}
+  .srow{flex-wrap:wrap;row-gap:0}.srow .d{width:100%;margin-left:30px;text-align:left;font-size:13px}
+  .name{font-size:19px}.L-tile .pct{font-size:40px}.btn{font-size:15px}.btn ha-icon{--mdc-icon-size:20px}
+  .btns .btn span{display:none}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
 
