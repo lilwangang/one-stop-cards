@@ -25,6 +25,9 @@ A room's shades with six layouts to choose from — three compact (Slim bar, Swi
 - **Open and close times** read straight from your automations (time and sunrise/sunset)
 - Finds the room's shades automatically; **Master edit** changes every Shades card at once
 
+### One Stop - Thermostat card
+Room temperature, what it's doing ("Heating to 21°"), mode buttons, set temperature (single or Heat + Cool range), fan (buttons, slider or list) and presets. The card glows orange while heating and blue while cooling. Lots of options in the visual editor, plus Master edit.
+
 ## Install
 
 ### HACS (recommended)
