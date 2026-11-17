@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -71,14 +71,14 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .rooms{padding:6px 16px 12px;margin-top:14px;border-top:1px solid var(--om-line);display:none}
 .rooms.open{display:block}
 .rooms h4{font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--om-sub);margin:12px 4px 8px}
-.room{display:grid;grid-template-columns:44px minmax(0,1fr) 34px;gap:12px;align-items:center;padding:8px 4px}
+.room{display:grid;grid-template-columns:44px minmax(0,1fr) 78px;gap:12px;align-items:center;padding:8px 4px}
 .room .thumb{width:44px;height:44px;border-radius:9px;background:rgba(255,255,255,.08) center/cover;display:grid;place-items:center}
 .room .thumb ha-icon{--mdc-icon-size:22px;color:var(--om-sub)}
 .room .info{min-width:0;text-align:left}
 .room .info b{display:block;font-size:15px;font-weight:600}
 .room .info span{display:block;font-size:12.5px;color:var(--om-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .room .rv{grid-column:2/4;margin-top:-2px}
-.chk{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);display:grid;place-items:center}
+.gbtn{height:34px;border-radius:999px;background:rgba(255,255,255,.16);font-size:13px;font-weight:650}.gbtn.on{background:transparent;border:1px solid rgba(255,255,255,.3);color:var(--om-sub)}.chk{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);display:grid;place-items:center}
 .chk.on{background:#fff;border-color:#fff}.chk.on ha-icon{color:#111}
 .chk ha-icon{--mdc-icon-size:18px;color:transparent}
 .room .info b .here{display:inline-block;color:var(--om-text);margin-left:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.16);font-size:11px;font-weight:600;vertical-align:2px}
@@ -106,6 +106,43 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .empty{font-size:13.5px;color:var(--om-sub);padding:6px 2px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);padding:10px 16px;border-radius:999px;background:rgba(30,32,38,.92);color:#fff;font-size:13.5px;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;z-index:10;backdrop-filter:blur(12px)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+/* room bar */
+.roombar{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 14px;margin:0 -2px}
+.roombar::-webkit-scrollbar{display:none}
+.rchip{flex:0 0 auto;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--om-line);font-size:14.5px;font-weight:600;color:var(--om-text);transition:background .15s,color .15s}
+.rchip ha-icon{--mdc-icon-size:20px;color:var(--om-sub)}
+.rchip.on{background:#fff;color:#111;border-color:#fff}.rchip.on ha-icon{color:#111}
+.rchip .eq{display:none;align-items:flex-end;gap:2px;height:12px}
+.rchip.playing .eq{display:flex}
+.rchip .eq i{width:3px;border-radius:1px;background:#4cd471;animation:eq 1s ease-in-out infinite}
+.rchip.on .eq i{background:#1a9c46}
+.rchip .eq i:nth-child(1){height:6px}.rchip .eq i:nth-child(2){height:12px;animation-delay:.2s}.rchip .eq i:nth-child(3){height:8px;animation-delay:.4s}
+@keyframes eq{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+.rchip.off{opacity:.45}
+/* mini player (phones) */
+.mini{display:none;align-items:center;gap:12px;padding:10px 12px 10px 10px;cursor:pointer;text-align:left;width:100%}
+.mini .mart{width:56px;height:56px;border-radius:10px;flex:none;background:rgba(255,255,255,.08) center/cover;display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.mini .mart ha-icon{--mdc-icon-size:26px;color:var(--om-faint)}
+.mini .mtxt{flex:1;min-width:0}
+.mini .mtxt b{display:block;font-size:15.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .mtxt span{display:block;font-size:13px;color:var(--om-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .mbtn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none}
+.mini .mbtn ha-icon{--mdc-icon-size:30px}
+.mini .mexp ha-icon{--mdc-icon-size:22px;color:var(--om-sub)}
+.collapse{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12)}
+.collapse ha-icon{--mdc-icon-size:22px}
+@media(max-width:899px){
+  .hero.small{padding:0}
+  .hero.small .mini{display:flex}
+  .hero.small .full{display:none}
+}
+@media(min-width:900px){.collapse{display:none}}
+/* play prompts */
+.libhead{font-size:13px;color:var(--om-sub);margin:0 2px 10px;font-weight:600}
+.libhead b{color:var(--om-text)}
+.tile .play{opacity:1;transform:none;width:30px;height:30px}
+.tile .play ha-icon{--mdc-icon-size:20px}
+.idle-hint{margin-top:10px;font-size:13.5px;color:var(--om-sub);text-align:center}
 `;
 
 class OneStopMusicCard extends HTMLElement {
@@ -136,7 +173,8 @@ class OneStopMusicCard extends HTMLElement {
   _activeId() {
     const ps = this._players();
     if (this._active && ps.some(p => p.entity === this._active)) return this._active;
-    const playing = ps.find(p => p.st?.state === 'playing') || ps.find(p => ACTIVE.includes(p.st?.state));
+    const real = p => ACTIVE.includes(p.st?.state) && p.st.attributes.media_title;
+    const playing = ps.find(p => p.st?.state === 'playing' && real(p)) || ps.find(real);
     return (playing || ps[0]).entity;
   }
   _st() { return this._hass?.states[this._activeId()]; }
@@ -163,11 +201,14 @@ class OneStopMusicCard extends HTMLElement {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._root = this.shadowRoot;
     const wide = this._cfg.layout !== 'stacked';
-    this._root.innerHTML = `<style>${CSS}</style><ha-card><div class="wrap ${wide ? 'wide' : ''}">
-      <section class="glass hero">
+    this._root.innerHTML = `<style>${CSS}</style><ha-card><nav class="roombar" aria-label="Rooms"></nav><div class="wrap ${wide ? 'wide' : ''}">
+      <section class="glass hero small">
         <div class="bg"></div>
-        <div class="top"><div class="eyebrow">Now playing</div>
-          <button class="room-btn" aria-label="Choose rooms">${icon('speaker')}<span class="rname"></span><small class="rplus"></small>${icon('chevron-down', 'chev')}</button></div>
+        <button class="mini" aria-label="Open player"><div class="mart"></div><div class="mtxt"><b class="mtitle"></b><span class="msub"></span></div>
+          <span class="mbtn mplay" role="button" aria-label="Play or pause">${icon('play')}</span><span class="mbtn mnext" role="button" aria-label="Next">${icon('skip-next')}</span></button>
+        <div class="full">
+        <div class="top"><button class="collapse" aria-label="Shrink player">${icon('chevron-down')}</button><div class="eyebrow nowin"></div>
+          <button class="room-btn" aria-label="Group speakers">${icon('speaker-multiple')}<span class="rname">Group</span><small class="rplus"></small></button></div>
         <div class="art"></div>
         <div class="meta"><div class="title"></div><div class="artist"></div></div>
         <div class="scrub"><input class="seek" type="range" min="0" max="100" step="1" value="0" aria-label="Position"><div class="times"><span class="pos">0:00</span><span class="dur">-0:00</span></div></div>
@@ -179,9 +220,12 @@ class OneStopMusicCard extends HTMLElement {
           <button class="sm repeat" aria-label="Repeat">${icon('repeat')}</button>
         </div>
         <div class="vol"><button class="mute" aria-label="Mute">${icon('volume-low')}</button><input class="volume" type="range" min="0" max="100" step="1" value="0" aria-label="Volume">${icon('volume-high')}</div>
-        <div class="rooms"><h4>Play on</h4><div class="rlist"></div></div>
+        <div class="idle-hint" hidden>Pick something below to play it here</div>
+        <div class="rooms"><h4 class="rtitle">Group speakers</h4><div class="rlist"></div></div>
+        </div>
       </section>
       <section class="lib">
+        <div class="libhead"></div>
         <div class="search">${icon('magnify')}<input type="search" placeholder="Artists, songs, albums, playlists" aria-label="Search music"><button class="clear" hidden aria-label="Clear search">${icon('close-circle')}</button></div>
         <div class="results"></div>
         <div class="rows"></div>
@@ -189,6 +233,13 @@ class OneStopMusicCard extends HTMLElement {
     </div><div class="toast"></div></ha-card>`;
     const q = s => this._q(s);
     q('.room-btn').addEventListener('click', () => { q('.rooms').classList.toggle('open'); this._renderRooms(); });
+    q('.mini').addEventListener('click', e => {
+      if (e.target.closest('.mplay')) return this._call('media_player', 'media_play_pause', { entity_id: this._activeId() });
+      if (e.target.closest('.mnext')) return this._call('media_player', 'media_next_track', { entity_id: this._activeId() });
+      q('.hero').classList.remove('small');
+    });
+    q('.collapse').addEventListener('click', () => { q('.hero').classList.add('small'); q('.rooms').classList.remove('open'); });
+    q('.roombar').addEventListener('click', e => { const c = e.target.closest('.rchip'); if (!c) return; this._active = c.dataset.e; this._pic = undefined; q('.rooms').classList.remove('open'); this._update(); });
     q('.play').addEventListener('click', () => this._call('media_player', 'media_play_pause', { entity_id: this._activeId() }));
     q('.prev').addEventListener('click', () => this._call('media_player', 'media_previous_track', { entity_id: this._activeId() }));
     q('.next').addEventListener('click', () => this._call('media_player', 'media_next_track', { entity_id: this._activeId() }));
@@ -213,17 +264,28 @@ class OneStopMusicCard extends HTMLElement {
   _update() {
     if (!this._root || !this._hass) return;
     const q = s => this._q(s), st = this._st(), a = st?.attributes || {};
-    const active = ACTIVE.includes(st?.state);
+    const active = ACTIVE.includes(st?.state) && !!st.attributes.media_title;
     const players = this._players(), me = players.find(p => p.entity === this._activeId());
     const others = (a.group_members || []).filter(e => e !== this._activeId()).length;
-    q('.rname').textContent = me?.name || '';
-    q('.rplus').textContent = others ? `+${others}` : '';
+    q('.rplus').textContent = '';
+    q('.rname').textContent = others ? `${others + 1} rooms` : 'Group';
+    q('.nowin').textContent = (active ? (st.state === 'paused' ? 'Paused in ' : 'Playing in ') : '') + (me?.name || '');
+    q('.libhead').innerHTML = `Tap anything to play it in <b>${esc(me?.name || '')}</b>${others ? ` and ${others} more` : ''}`;
+    q('.idle-hint').hidden = active;
+    q('.mtitle').textContent = active ? (a.media_title || 'Unknown') : `Nothing playing in ${me?.name || ''}`;
+    q('.msub').textContent = active ? [a.media_artist, others ? `${others + 1} rooms` : me?.name].filter(Boolean).join(' · ') : 'Pick something below';
+    q('.mplay ha-icon').setAttribute('icon', st?.state === 'playing' ? 'mdi:pause' : 'mdi:play');
+    q('.mnext').style.visibility = active ? '' : 'hidden';
+    q('.mplay').style.visibility = active ? '' : 'hidden';
+    this._renderRoomBar(players);
     const pic = active ? a.entity_picture : '';
     if (pic !== this._pic) {
       this._pic = pic;
       q('.art').style.backgroundImage = pic ? `url("${pic}")` : '';
       q('.art').innerHTML = pic ? '' : icon('music-note');
       q('.bg').style.backgroundImage = pic ? `url("${pic}")` : '';
+      q('.mart').style.backgroundImage = pic ? `url("${pic}")` : '';
+      q('.mart').innerHTML = pic ? '' : icon('music-note');
     }
     q('.art').classList.toggle('paused', st?.state === 'paused');
     q('.title').textContent = active ? (a.media_title || 'Unknown') : 'Not playing';
@@ -250,25 +312,37 @@ class OneStopMusicCard extends HTMLElement {
     this._q('.pos').textContent = ACTIVE.includes(st?.state) && dur ? fmt(pos) : '0:00';
     this._q('.dur').textContent = ACTIVE.includes(st?.state) && dur ? '-' + fmt(dur - pos) : '-0:00';
   }
+  _renderRoomBar(players) {
+    const id = this._activeId();
+    const sig = players.map(p => p.entity + p.st?.state).join() + id;
+    if (sig === this._rbSig) return; this._rbSig = sig;
+    this._q('.roombar').innerHTML = players.map(p => {
+      const off = !p.st || p.st.state === 'unavailable';
+      return `<button class="rchip ${p.entity === id ? 'on' : ''} ${p.st?.state === 'playing' ? 'playing' : ''} ${off ? 'off' : ''}" data-e="${esc(p.entity)}" aria-pressed="${p.entity === id}">
+        ${icon((p.icon || 'mdi:speaker').replace('mdi:', ''))}<span>${esc(p.name)}</span><span class="eq"><i></i><i></i><i></i></span></button>`;
+    }).join('');
+    const on = this._q('.rchip.on'); if (on) { const bar = this._q('.roombar'); bar.scrollTo({ left: Math.max(0, on.offsetLeft - 8), behavior: 'smooth' }); }
+  }
   _renderRooms() {
     const list = this._q('.rlist'), activeId = this._activeId(), st = this._st();
     const members = new Set([activeId, ...(st?.attributes.group_members || [])]);
-    list.innerHTML = this._players().map(p => {
-      const a = p.st?.attributes || {}, playing = ACTIVE.includes(p.st?.state);
+    const ordered = this._players().sort((x, y) => (y.entity === activeId) - (x.entity === activeId));
+    list.innerHTML = ordered.map(p => {
+      const a = p.st?.attributes || {}, playing = ACTIVE.includes(p.st?.state) && !!a.media_title;
       const sub = p.st?.state === 'unavailable' ? 'Offline' : playing ? [a.media_title, a.media_artist].filter(Boolean).join(' · ') : 'Not playing';
       const pic = playing ? a.entity_picture : '';
       const inGroup = members.has(p.entity), cur = p.entity === activeId;
       return `<div class="room ${cur ? 'current' : ''}" data-e="${esc(p.entity)}">
-        <button class="thumb pick" style="${pic ? `background-image:url('${esc(pic)}')` : ''}">${pic ? '' : icon(p.icon?.replace('mdi:', '') || 'speaker')}</button>
-        <button class="info pick"><b>${esc(p.name)}${cur ? '<span class="here">This room</span>' : ''}</b><span>${esc(sub)}</span></button>
-        ${cur ? '<span></span>' : `<button class="chk ${inGroup ? 'on' : ''}" aria-label="${inGroup ? 'Remove from' : 'Add to'} this group">${icon('check')}</button>`}
+        <div class="thumb" style="${pic ? `background-image:url('${esc(pic)}')` : ''}">${pic ? '' : icon(p.icon?.replace('mdi:', '') || 'speaker')}</div>
+        <div class="info"><b>${esc(p.name)}${cur ? '<span class="here">Main</span>' : ''}</b><span>${esc(sub)}</span></div>
+        ${cur ? '<span></span>' : `<button class="gbtn ${inGroup ? 'on' : ''}">${inGroup ? 'Remove' : 'Add'}</button>`}
         <input class="rv" type="range" min="0" max="100" step="1" value="${Math.round((a.volume_level || 0) * 100)}" style="--p:${Math.round((a.volume_level || 0) * 100)}%" aria-label="${esc(p.name)} volume">
       </div>`;
     }).join('');
     list.querySelectorAll('.room').forEach(row => {
       const e = row.dataset.e;
-      row.querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => { this._active = e; this._pic = undefined; this._update(); }));
-      row.querySelector('.chk')?.addEventListener('click', ev => {
+
+      row.querySelector('.gbtn')?.addEventListener('click', ev => {
         const on = ev.currentTarget.classList.contains('on');
         if (on) this._call('media_player', 'unjoin', { entity_id: e });
         else this._call('media_player', 'join', { entity_id: this._activeId(), group_members: [e] });
