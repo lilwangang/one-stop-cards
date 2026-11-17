@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -27,7 +27,7 @@ const SERVICES = {
 const DEFAULTS = {
   room_name: '', country: 'CA', netflix_plan: 'standard', paramount_plan: 'standard',
   services: ['netflix', 'disney', 'prime', 'crave', 'appletv', 'paramount', 'hayu', 'youtube', 'cbc', 'telus'], default_service: 'netflix',
-  show_tabs: true, show_search: true, show_trending: true, show_shows: true, show_movies: true, show_new: true, row_count: 20,
+  show_tabs: true, show_search: true, show_recent: true, show_trending: true, show_shows: true, show_movies: true, show_new: true, row_count: 20,
   poster_size: 'medium', poster_shape: 'rounded', show_titles: true, use_brand_colour: true, confirm_open: true,
   card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true,
 };
@@ -116,6 +116,58 @@ const Shared = {
     this.data = cfg.one_stop; this._cache(); this.listeners.forEach(fn => fn(this.data));
   },
 };
+
+/* ---------------- recently played ----------------
+ * Two sources, merged newest first:
+ *  1. Titles opened from any Streaming card (saved for the whole home on the hidden One Stop Cards dashboard).
+ *  2. What the home's Apple TVs reported playing in each app (Home Assistant history). Apps that don't
+ *     report titles (Netflix) only show up through source 1.
+ */
+const RECENT_MAX = 30, RECENT_LS = 'one-stop-streaming-recent';
+const Recent = {
+  local() { try { return JSON.parse(localStorage.getItem(RECENT_LS) || '{}') || {}; } catch (e) { return {}; } },
+  saved(svc) { const a = ((Shared.data || {}).recent || {})[svc] || [], b = this.local()[svc] || [], m = new Map();
+    for (const x of [...a, ...b]) { const k = x.id || x.t; if (!m.has(k) || m.get(k).ts < x.ts) m.set(k, x); } return [...m.values()]; },
+  async add(hass, svc, item) {
+    const l = this.local(); l[svc] = [item, ...(l[svc] || []).filter(x => (x.id || x.t) !== (item.id || item.t))].slice(0, RECENT_MAX);
+    try { localStorage.setItem(RECENT_LS, JSON.stringify(l)); } catch (e) {}
+    try {
+      let cfg; try { cfg = await hass.callWS({ type: 'lovelace/config', url_path: STYLE_DASH, force: true }); } catch (e) { cfg = null; }
+      if (!cfg || !cfg.views) { await Shared.save(hass, ((Shared.data || {})[SECTION]) || {}); cfg = await hass.callWS({ type: 'lovelace/config', url_path: STYLE_DASH, force: true }); }
+      const os = cfg.one_stop = cfg.one_stop || {}, r = os.recent = os.recent || {};
+      r[svc] = [item, ...(r[svc] || []).filter(x => (x.id || x.t) !== (item.id || item.t))].slice(0, RECENT_MAX);
+      await hass.callWS({ type: 'lovelace/config/save', url_path: STYLE_DASH, config: cfg });
+      Shared.data = { ...(Shared.data || {}), recent: r }; Shared._cache();
+    } catch (e) { /* not an admin or offline: this device still remembers it */ }
+  },
+  _hist: null, _histT: 0,
+  async tv(hass) {                                   // [{app, t, ts, room}] newest first, cached 2 min
+    if (this._hist && Date.now() - this._histT < 120000) return this._hist;
+    const ids = Object.keys(hass.states).filter(e => e.startsWith('media_player.') && hass.entities?.[e]?.platform === 'apple_tv');
+    if (!ids.length) return [];
+    const start = new Date(Date.now() - 30 * 864e5).toISOString();
+    const r = await hass.callWS({ type: 'history/history_during_period', start_time: start, entity_ids: ids, minimal_response: false, no_attributes: false, significant_changes_only: false });
+    const out = [];
+    for (const [id, rows] of Object.entries(r || {})) {
+      const room = hass.states[id]?.attributes?.friendly_name || '';
+      for (const x of rows) {
+        const a = x.a || x.attributes || {}, st = x.s ?? x.state, t = a.media_series_title || a.media_title;
+        if (!t || !['playing', 'paused'].includes(st) || /^loading/i.test(t)) continue;
+        out.push({ app: a.app_name || a.app_id || '', t: String(t), ep: a.media_series_title ? a.media_title : '', ts: Math.round(1000 * (x.lu ?? (Date.parse(x.last_updated || x.last_changed) / 1000))), room });
+      }
+    }
+    out.sort((a, b) => b.ts - a.ts); this._hist = out; this._histT = Date.now(); return out;
+  },
+  _match: new Map(),
+  async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
+    const k = cc + pkg + title.toLowerCase(); if (this._match.has(k)) return this._match.get(k);
+    let hit = null;
+    try { const l = await JWQ.list(cc, pkg, { search: title, first: 5 }), n = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      hit = l.find(x => n(x.content?.title) === n(title)) || null; } catch (e) {}
+    this._match.set(k, hit); return hit;
+  },
+};
+const ago = ts => { const m = Math.round((Date.now() - ts) / 60000); if (m < 60) return m <= 1 ? 'Just now' : `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} h ago`; const d = Math.round(h / 24); return d === 1 ? 'Yesterday' : `${d} days ago`; };
 
 /* ---------------- styles ---------------- */
 const CSS = `
@@ -218,25 +270,65 @@ class OneStopStreamingCard extends HTMLElement {
     const tabs = c.show_tabs && list.length > 1 ? `<div class="tabs">${list.map(s => `<button class="tab ${s === this._svc ? 'on' : ''}" data-svc="${s}" style="--tc:${SERVICES[s].color.join(',')}">${esc(SERVICES[s].name)}</button>`).join('')}</div>` : '';
     const sec = (k, t) => `<div class="sec" data-sec="${k}"><div class="sh"><h2>${esc(t)}</h2><span class="ct" data-ct></span></div><div data-body><div class="empty">Loading…</div></div></div>`;
     const body = !pkg
-      ? `<div class="apponly">${esc(S.name)} doesn’t share its catalogue, so it opens straight in the app.<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open ${esc(S.name)} on ${esc(room)}</button></div>`
+      ? `${c.show_recent ? sec('recent', 'Recently played') : ''}<div class="apponly">${esc(S.name)} doesn’t share its catalogue, so it opens straight in the app.<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open ${esc(S.name)} on ${esc(room)}</button></div>`
       : `${c.show_search ? `<label class="search"><ha-icon icon="mdi:magnify"></ha-icon><input type="search" placeholder="Search ${esc(S.name)}" data-q enterkeyhint="search" value="${esc(this._q || '')}"></label>` : ''}
         <div data-results class="hide">${sec('results', 'Results')}</div>
-        <div data-rows>${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
+        <div data-rows>${c.show_recent ? sec('recent', 'Recently played') : ''}${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
     R.innerHTML = `<style>${CSS}</style><ha-card class="sz-${esc(c.poster_size)} ${c.show_titles ? '' : 'notitles'} ${c.use_brand_colour ? 'brand' : ''}" style="${vars}">${tabs}
       <div class="hero"><h1>${esc(S.name)}<span class="sub">${esc([room, planWord].filter(Boolean).join(' · '))}</span></h1>${pkg ? `<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open app</button>` : ''}</div>${body}</ha-card>`;
     this._built = true;
     R.querySelectorAll('[data-svc]').forEach(b => b.addEventListener('click', () => { this._buzz(); this._svc = b.dataset.svc; this._q = ''; this._build(); }));
     R.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => this._openApp()));
     const q = R.querySelector('[data-q]'); if (q) q.addEventListener('input', () => { clearTimeout(this._qt); this._qt = setTimeout(() => { this._q = q.value.trim(); this._search(); }, 350); });
-    if (pkg) { this._loadRows(pkg); if (this._q) this._search(); }
+    if (pkg) { this._loadRows(pkg); if (this._q) this._search(); } else if (c.show_recent) this._loadRecent(null);
   }
   async _loadRows(pkg) {
     const c = this._cfg, n = +c.row_count || 20, cc = c.country || 'CA', svc = this._svc;
     const fill = (k, p) => p.then(l => { if (this._svc === svc) this._fill(k, l); }).catch(e => { if (this._svc === svc) this._fill(k, null, e); });
+    if (c.show_recent) this._loadRecent(pkg);
     if (c.show_trending) fill('trending', JWQ.list(cc, pkg, { sort: 'TRENDING', first: n }));
     if (c.show_new) fill('new', JWQ.fresh(cc, pkg, n));
     if (c.show_shows) fill('shows', JWQ.list(cc, pkg, { type: 'SHOW', first: n }));
     if (c.show_movies) fill('movies', JWQ.list(cc, pkg, { type: 'MOVIE', first: n }));
+  }
+  async _loadRecent(pkg) {
+    const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
+    const paint = list => { if (this._svc !== svc) return; this._fillRecent(list); };
+    const saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
+    paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
+    let tv = [];
+    try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) {}
+    const seen = new Set(saved.map(x => (x.t || '').toLowerCase())), fromTv = [];
+    for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, src: 'tv' }); }
+    let all = [...saved, ...fromTv].sort((a, b) => b.ts - a.ts).slice(0, n);
+    paint(all);
+    if (!pkg) return;
+    for (const x of all.filter(y => y.src === 'tv')) {           // add posters for what the TV reported
+      const hit = await Recent.resolve(cc, pkg, x.t); if (this._svc !== svc) return;
+      if (hit) { x.id = hit.id; x.p = hit.content?.posterUrl; x.y = hit.content?.originalReleaseYear; x.o = hit.objectType; this._items = this._items || new Map(); this._items.set(hit.id, hit); }
+    }
+    paint(all);
+  }
+  _fillRecent(list) {
+    const s = this.shadowRoot.querySelector('[data-sec="recent"]'); if (!s) return;
+    const b = s.querySelector('[data-body]');
+    if (!list.length) { b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
+    this._recent = list;
+    b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p);
+      return `<button class="it" data-ri="${i}" aria-label="${esc(x.t)}"><div class="ph">${src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="">` : ''}<div class="fb ${src ? 'hide' : ''}">${esc(x.t)}</div><span class="badge">${esc(ago(x.ts))}</span></div><div class="nm">${esc(x.t)}</div><div class="sb">${esc(x.ep || x.room || (x.o === 'SHOW' ? 'Series' : x.y ? 'Movie · ' + x.y : ''))}</div></button>`; }).join('')}</div>`;
+    s.querySelector('[data-ct]').textContent = String(list.length);
+    b.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
+    b.querySelectorAll('[data-ri]').forEach(el => el.addEventListener('click', () => {
+      const x = this._recent[+el.dataset.ri]; const full = x.id && this._items?.get(x.id);
+      if (full) return this._open(full);
+      if (x.id && x.url) return this._open({ id: x.id, objectType: x.o, content: { title: x.t, posterUrl: x.p, originalReleaseYear: x.y }, offers: [{ standardWebURL: x.url }] });
+      this._buzz(); this._openApp();
+    }));
+  }
+  _remember(x) {
+    if (!x) return; const ct = x.content || {};
+    Recent.add(this._hass, this._svc, { id: x.id, t: ct.title, p: ct.posterUrl, y: ct.originalReleaseYear, o: x.objectType, url: x.offers?.[0]?.standardWebURL, ts: Date.now(), room: this._cfg.room_name || '' })
+      .then(() => { if (this._cfg.show_recent) this._loadRecent(this._pkg(this._svc)); });
   }
   async _search() {
     const R = this.shadowRoot, res = R.querySelector('[data-results]'), rows = R.querySelector('[data-rows]'); if (!res) return;
@@ -264,7 +356,7 @@ class OneStopStreamingCard extends HTMLElement {
   _open(x) {
     if (!x) return; this._buzz();
     const c = this._cfg, ct = x.content || {}, S = SERVICES[this._svc], url = x.offers?.[0]?.standardWebURL, room = c.room_name || 'the TV';
-    if (!c.confirm_open) return this._play(url, ct.title);
+    if (!c.confirm_open) { this._remember(x); return this._play(url, ct.title); }
     const meta = [x.objectType === 'SHOW' ? 'Series' : 'Movie', ct.originalReleaseYear, ct.runtime ? `${ct.runtime} min` : '', ct.scoring?.imdbScore ? `IMDb ${ct.scoring.imdbScore}` : ''].filter(Boolean).join(' · ');
     const w = document.createElement('div'); w.className = 'pop';
     w.innerHTML = `<div class="sheet" role="dialog" aria-label="${esc(ct.title)}"><div class="top"><div class="ph">${ct.posterUrl ? `<img src="${esc(big(ct.posterUrl))}" alt="">` : ''}</div>
@@ -275,7 +367,7 @@ class OneStopStreamingCard extends HTMLElement {
       <button class="close" data-a="close">Close</button></div>`;
     this.shadowRoot.appendChild(w);
     w.addEventListener('click', e => { if (e.target === w) w.remove(); });
-    w.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.a; w.remove(); if (a === 'play') this._play(url, ct.title); if (a === 'app') this._openApp(); }));
+    w.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.a; w.remove(); if (a === 'play') { this._remember(x); this._play(url, ct.title); } if (a === 'app') this._openApp(); }));
   }
   async _wake() {
     const c = this._cfg, h = this._hass, st = h.states[c.apple_tv]?.state;
@@ -319,7 +411,7 @@ const schema = d => {
       ]),
     ]),
     section('g_show', 'What to show', 'mdi:eye-outline', [grid([
-      { name: 'show_tabs', selector: toggle }, { name: 'show_search', selector: toggle },
+      { name: 'show_tabs', selector: toggle }, { name: 'show_search', selector: toggle }, { name: 'show_recent', selector: toggle },
       { name: 'show_trending', selector: toggle }, { name: 'show_new', selector: toggle },
       { name: 'show_shows', selector: toggle }, { name: 'show_movies', selector: toggle },
       { name: 'row_count', selector: { number: { min: 5, max: 40, step: 5, mode: 'slider' } } },
@@ -344,12 +436,13 @@ const LABELS = {
   edit_all: 'Master edit – change all Streaming cards at once', reset_style: 'Use the shared style on this card (clear its own changes)',
   room_name: 'Room name (shown on the card)', apple_tv: 'Apple TV', remote: 'Apple TV remote',
   country: 'Country (each country has a different catalogue)', services: 'Services this home subscribes to', netflix_plan: 'Netflix plan', paramount_plan: 'Paramount+ plan', default_service: 'Service shown first',
-  show_tabs: 'Service buttons at the top', show_search: 'Search box', show_trending: 'Trending', show_new: 'New this week', show_shows: 'Popular shows', show_movies: 'Popular movies', row_count: 'Titles in each row',
+  show_tabs: 'Service buttons at the top', show_search: 'Search box', show_recent: 'Recently played', show_trending: 'Trending', show_new: 'New this week', show_shows: 'Popular shows', show_movies: 'Popular movies', row_count: 'Titles in each row',
   poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening',
   use_brand_colour: 'Tint the card in the service’s colour', off_background: 'Background', off_custom_color: 'Your background colour', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style', title_size: 'Title size', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
   services: 'Only titles on these services are shown, so everything listed is something this home can watch.',
+  show_recent: 'Titles opened from this card, plus what the Apple TVs report playing in each app (Netflix doesn’t report titles, so only titles opened here show for Netflix).',
   netflix_plan: 'Standard with Ads is missing some titles, so they are left out. Standard and Premium have the same titles.',
 };
 class OneStopStreamingCardEditor extends HTMLElement {
@@ -394,5 +487,5 @@ if (!customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, OneStopSt
 window.customCards = window.customCards || [];
 if (!window.customCards.some(c => c.type === TAG)) window.customCards.push({ type: TAG, name: 'One Stop - Streaming card', description: 'Browse and search Netflix, Disney+, Prime Video and more (only what this home subscribes to) and open a title on the room’s TV.', preview: false });
 console.info(`%c ONE STOP %c Streaming card ${VERSION} `, 'background:#375374;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px', 'background:#e9eef5;color:#375374;border-radius:0 3px 3px 0;padding:2px 4px');
-window.__oneStopStreaming = { SERVICES, JWQ };
+window.__oneStopStreaming = { SERVICES, JWQ, Recent };
 })();
