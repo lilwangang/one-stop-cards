@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -143,6 +143,32 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .tile .play{opacity:1;transform:none;width:30px;height:30px}
 .tile .play ha-icon{--mdc-icon-size:20px}
 .idle-hint{margin-top:10px;font-size:13.5px;color:var(--om-sub);text-align:center}
+/* 1.2: player about 25% larger */
+@media(min-width:900px){.wrap.wide{grid-template-columns:minmax(420px,525px) minmax(0,1fr)}}
+@media(min-width:900px){.hero{padding:22px 24px 20px}}
+.art{max-width:450px;border-radius:20px}
+.art ha-icon{--mdc-icon-size:95px}
+.meta{margin-top:26px}
+.title{font-size:26px;line-height:32px}
+.artist{font-size:20px;line-height:26px}
+.times{font-size:13px}
+input[type=range]{height:26px}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px}
+input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-5px}
+.ctrl{margin:18px 2px 8px}
+.ctrl .sm{width:52px;height:52px}.ctrl .sm ha-icon{--mdc-icon-size:27px}
+.ctrl .md{width:72px;height:72px}.ctrl .md ha-icon{--mdc-icon-size:50px}
+.ctrl .lg{width:92px;height:92px}.ctrl .lg ha-icon{--mdc-icon-size:70px}
+.vol{gap:14px;margin-top:10px}.vol ha-icon,.vol button ha-icon{--mdc-icon-size:22px}
+.room-btn{font-size:15px;padding:9px 14px 9px 12px}.room-btn ha-icon{--mdc-icon-size:21px}
+.mini{gap:14px;padding:12px 14px 12px 12px}
+.mini .mart{width:70px;height:70px;border-radius:12px}
+.mini .mart ha-icon{--mdc-icon-size:32px}
+.mini .mtxt b{font-size:18.5px}
+.mini .mtxt span{font-size:15px}
+.mini .mbtn{width:54px;height:54px}.mini .mbtn ha-icon{--mdc-icon-size:36px}
+.mini .mexp ha-icon{--mdc-icon-size:26px}
 `;
 
 class OneStopMusicCard extends HTMLElement {

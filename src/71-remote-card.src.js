@@ -5,7 +5,7 @@
  */
 (() => {
 const init = E => {
-const VERSION = '1.0.1';
+const VERSION = '1.1.0'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -85,10 +85,25 @@ function elementCss(el) {
   return (host.length ? `:host{${host.join(';')};}` : '') + (extra.length ? '\n' + extra.join('\n') : '');
 }
 
+const POPUP_EVENT = 'one-stop-remote-popup';
+const popupList = c => (Array.isArray(c?.popups) ? c.popups.filter(p => p && typeof p === 'object' && p.name) : []);
 function compile(config) {
   const c = { ...config };
   const css = cardCss(c.look);
   delete c.look;
+  const pops = popupList(c);
+  delete c.popups;
+  if (pops.length) {
+    c.custom_actions = [...(Array.isArray(c.custom_actions) ? c.custom_actions : [])];
+    for (const p of pops) {
+      const i = c.custom_actions.findIndex(a => a && a.name === p.name), base = i >= 0 ? c.custom_actions[i] : {};
+      const btn = { ...base, type: 'button', name: p.name, icon: p.icon || base.icon || 'mdi:dots-grid', label: p.label ?? base.label ?? 'More',
+        tap_action: { action: 'fire-dom-event', event_type: POPUP_EVENT, popup: p.name }, hold_action: { action: 'none' }, double_tap_action: { action: 'none' } };
+      if (p.styles) btn.styles = p.styles;
+      if (p.look) btn.look = p.look;
+      if (i >= 0) c.custom_actions[i] = btn; else c.custom_actions.push(btn);
+    }
+  }
   c.styles = [css, alias(c.styles)].filter(Boolean).join('\n') || undefined;
   if (Array.isArray(c.custom_actions)) {
     c.custom_actions = c.custom_actions.map(el => {
@@ -122,7 +137,71 @@ class OneStopRemoteCard extends E.Card {
     if (this.hass) this.hass = { ...this.hass };
   }
   getGridOptions() { return { columns: 12, min_columns: 12 }; }
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this._popListen) {
+      this._popListen = e => { const name = e.detail?.popup; if (name == null) return; e.stopPropagation(); this._openPopup(String(name)); };
+      this.addEventListener(POPUP_EVENT, this._popListen);
+    }
+    if (!this._navListen) { this._navListen = () => this._closePopup(); window.addEventListener('location-changed', this._navListen); }
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._navListen) { window.removeEventListener('location-changed', this._navListen); this._navListen = null; }
+    this._closePopup();
+  }
+  shouldUpdate(changed) {
+    if (changed.has('hass') && this._popCard) this._popCard.hass = this.hass;
+    return super.shouldUpdate(changed);
+  }
+  _openPopup(name) {
+    const raw = this._raw || {}, p = popupList(raw).find(x => x.name === name);
+    if (!p || !this.shadowRoot) return;
+    let d = this._popDialog;
+    if (!d || !d.isConnected) {
+      d = this._popDialog = document.createElement('dialog');
+      d.className = 'os-pop';
+      d.innerHTML = `<style>${POPUP_CSS}</style><div class="grab"></div><div class="head"><span></span><button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></div><div class="body"></div>`;
+      d.addEventListener('click', e => { if (e.target === d) this._closePopup(); });
+      d.querySelector('.x').addEventListener('click', () => this._closePopup());
+      d.addEventListener('close', () => { if (!d.open) this._popCard = null; });
+      this.shadowRoot.appendChild(d);
+    }
+    d.querySelector('.head span').textContent = p.title || p.label || 'More';
+    const inner = document.createElement(TAG);
+    const cfg = { ...raw, rows: Array.isArray(p.rows) ? p.rows : [], title: undefined,
+      styles: [raw.styles, 'ha-card{background:none;--ha-card-background:transparent;border:none;border-top:none;border-radius:0;box-shadow:none;padding:4px 2px 2px;backdrop-filter:none;-webkit-backdrop-filter:none;}'].filter(Boolean).join('\n') };
+    delete cfg.grid_options; delete cfg.title;
+    inner.setConfig(cfg);
+    inner.hass = this.hass;
+    d.querySelector('.body').replaceChildren(inner);
+    this._popCard = inner;
+    if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute('open', ''); } }
+    if (this.hass && (raw.haptics ?? true) !== false) { try { navigator.vibrate?.(10); } catch (e) {} }
+  }
+  _closePopup() {
+    const d = this._popDialog;
+    if (d && d.open) { try { d.close(); } catch (e) { d.removeAttribute('open'); } }
+    this._popCard = null;
+  }
 }
+const POPUP_CSS = `
+dialog.os-pop{border:none;padding:0 0 max(14px,env(safe-area-inset-bottom));margin:auto auto 0;width:min(560px,100vw);max-width:100vw;max-height:88vh;overflow:auto;box-sizing:border-box;
+  border-radius:26px 26px 0 0;color:var(--primary-text-color);
+  background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),var(--ha-card-background,var(--card-background-color,#1f2228));
+  backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2);
+  border-top:1px solid color-mix(in srgb,var(--primary-text-color) 16%,transparent);box-shadow:0 -12px 40px rgba(0,0,0,.45);animation:ospop .22s cubic-bezier(.2,.8,.2,1)}
+dialog.os-pop::backdrop{background:rgba(0,0,0,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+@media (min-width:700px){dialog.os-pop{margin:auto;border-radius:26px;border:1px solid color-mix(in srgb,var(--primary-text-color) 16%,transparent);padding-bottom:14px}}
+@keyframes ospop{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.grab{width:42px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--primary-text-color) 30%,transparent);margin:10px auto 0}
+@media (min-width:700px){.grab{display:none}}
+.head{display:flex;align-items:center;gap:10px;padding:12px 16px 4px 22px}
+.head span{flex:1;font-size:19px;font-weight:650}
+.x{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;display:grid;place-items:center;color:inherit;background:color-mix(in srgb,var(--primary-text-color) 10%,transparent)}
+.x ha-icon{--mdc-icon-size:22px}
+.body{padding:0 10px}
+`;
 
 /* ------------------------------------------------------------------ editor helpers */
 const SPECIAL = {
@@ -326,7 +405,8 @@ class OneStopRemoteCardEditor extends HTMLElement {
     const j = JSON.stringify(config);
     if (j === this._json) return;
     this._json = j; this._config = clone(config) || {};
-    if (Array.isArray(this._config.rows)) this._config.rows = this._rows();
+    if (Array.isArray(this._config.rows)) this._config.rows = this._config.rows.map(x => (Array.isArray(x) ? x : [x]));
+    if (this._scope != null && !this._popup(this._scope)) this._scope = null;
     if (this._tab == null) this._tab = (this._config.remote_id || this._config.media_player_id || this._config.custom_actions?.length) ? 'buttons' : 'device';
     this._render();
   }
@@ -351,8 +431,14 @@ class OneStopRemoteCardEditor extends HTMLElement {
     if (!el) { el = clone(this._default(name)) || { type: 'button', name }; el.name = name; (this._config.custom_actions = this._config.custom_actions || []).push(el); }
     return el;
   }
-  _rows() { return (Array.isArray(this._config.rows) ? this._config.rows : []).map(r => (Array.isArray(r) ? r : [r])); }
-  _at(path) { let n = this._config.rows; for (const i of path) n = n?.[i]; return n; }
+  _popups() { return popupList(this._config); }
+  _popup(name) { return this._popups().find(p => p.name === name); }
+  _scopePop() { return this._scope != null ? this._popup(this._scope) : null; }
+  _rootRows() { const p = this._scopePop(); return p ? p.rows : this._config.rows; }
+  _setRows(r) { const p = this._scopePop(); if (p) p.rows = r; else this._config.rows = r; }
+  _rows() { const r = this._rootRows(); return (Array.isArray(r) ? r : []).map(x => (Array.isArray(x) ? x : [x])); }
+  _allRows() { return [this._config.rows || [], ...this._popups().map(p => p.rows || [])]; }
+  _at(path) { let n = this._rootRows(); for (const i of path) n = n?.[i]; return n; }
   _parent(path) { return this._at(path.slice(0, -1)); }
   _icon(icon, fallback) {
     if (!icon || hasTpl(icon)) return `<ha-icon icon="${fallback || 'mdi:gesture-tap-button'}"></ha-icon>`;
@@ -362,17 +448,22 @@ class OneStopRemoteCardEditor extends HTMLElement {
   }
   _iconFor(name) {
     if (SPECIAL[name]) return this._icon(SPECIAL[name][1]);
+    const pop = this._popup(name);
+    if (pop) return this._icon(pop.icon || 'mdi:dots-grid');
     const el = this._el(name);
     if (!el) return this._icon(null, 'mdi:border-none-variant');
     return this._icon(el.icon, PADS[name]?.[1] || { slider: 'mdi:tune-variant', touchpad: 'mdi:gesture-swipe', circlepad: 'mdi:gamepad-circle' }[el.type] || (el.label ? 'mdi:format-text' : undefined));
   }
   _label(name) {
+    const pop = this._popup(name);
+    if (pop) return String(pop.label || 'More');
     const c = this._custom(name);
     if (c && c.label && !hasTpl(c.label) && !this._default(name)) return String(c.label);
     return nice(name);
   }
   _kindWord(name) {
     if (hasTpl(name)) return 'template';
+    if (this._popup(name)) { const n = JSON.stringify(this._popup(name).rows || []).match(/"[^"]*"/g)?.length || 0; return `pop-up with ${n} button${n === 1 ? '' : 's'}`; }
     if (SPECIAL[name]) return 'set of buttons';
     const el = this._el(name);
     if (!el) return 'empty space';
@@ -461,7 +552,7 @@ class OneStopRemoteCardEditor extends HTMLElement {
   /* ---------- tab 2: buttons (layout) ---------- */
   _chip(name, path, on) {
     const wide = SPECIAL[name] || ['touchpad', 'slider', 'circlepad'].includes(this._el(name)?.type);
-    return `<button class="chip ${wide ? 'wide' : ''} ${on ? 'on' : ''}" data-act="sel" data-path="${path.join(',')}" title="${esc(name)}">${this._iconFor(name)}<span>${esc(hasTpl(name) ? 'Template' : this._el(name) || SPECIAL[name] ? this._label(name) : 'Empty space')}</span></button>`;
+    return `<button class="chip ${wide ? 'wide' : ''} ${on ? 'on' : ''}" data-act="sel" data-path="${path.join(',')}" title="${esc(name)}">${this._iconFor(name)}<span>${esc(hasTpl(name) ? 'Template' : this._el(name) || SPECIAL[name] || this._popup(name) ? this._label(name) : 'Empty space')}</span></button>`;
   }
   _group(arr, path, isRow) {
     const selp = (this._sel || []).join(',');
@@ -475,25 +566,32 @@ class OneStopRemoteCardEditor extends HTMLElement {
   _toolbar() {
     const p = this._sel, item = this._at(p), parent = this._parent(p), i = p[p.length - 1];
     const isGroup = Array.isArray(item), name = isGroup ? null : item;
-    const head = isGroup ? `<ha-icon icon="mdi:view-grid-outline"></ha-icon>Group of ${item.length} ` : `${this._iconFor(name)}${esc(this._el(name) || SPECIAL[name] ? this._label(name) : 'Empty space')} <small>${esc(this._kindWord(name))}</small>`;
+    const head = isGroup ? `<ha-icon icon="mdi:view-grid-outline"></ha-icon>Group of ${item.length} ` : `${this._iconFor(name)}${esc(this._el(name) || SPECIAL[name] || this._popup(name) ? this._label(name) : 'Empty space')} <small>${esc(this._kindWord(name))}</small>`;
     const canEdit = name && !SPECIAL[name] && !hasTpl(name) && this._el(name);
     let inner = '';
     if (name && SPECIAL[name]) inner = `<div class="inner">Change one of its buttons:<div class="tbtns">${[...new Set(SPECIAL[name][3])].filter(n => this._el(n)).map(n => `<button class="btn" data-act="edit" data-name="${n}">${this._iconFor(n)}${esc(nice(n))}</button>`).join('')}</div></div>`;
     return `<div class="tool"><div class="tname">${head}</div><div class="tbtns">
-      ${canEdit ? `<button class="btn pri" data-act="edit" data-name="${esc(name)}"><ha-icon icon="mdi:pencil"></ha-icon>Change it</button>` : ''}
+      ${name && this._popup(name) ? `<button class="btn pri" data-act="scope" data-name="${esc(name)}"><ha-icon icon="mdi:open-in-app"></ha-icon>Open and change it</button>` : canEdit ? `<button class="btn pri" data-act="edit" data-name="${esc(name)}"><ha-icon icon="mdi:pencil"></ha-icon>Change it</button>` : ''}
       <button class="btn" data-act="move" data-d="-1" ${i === 0 ? 'disabled' : ''}><ha-icon icon="mdi:arrow-left"></ha-icon>Move</button>
       <button class="btn" data-act="move" data-d="1" ${i >= parent.length - 1 ? 'disabled' : ''}>Move<ha-icon icon="mdi:arrow-right"></ha-icon></button>
       <button class="btn warn" data-act="remove"><ha-icon icon="mdi:close"></ha-icon>Take off</button>
     </div>${inner}</div>`;
   }
   _viewLayout(body) {
-    const rows = this._rows();
+    const rows = this._rows(), pop = this._scopePop();
+    if (pop) return this._viewPopup(body, pop, rows);
     if (!rows.length || (rows.length === 1 && !rows[0].length && !(this._config.custom_actions || []).length)) {
       this._html(body, '<div class="note"><b>Start with a ready-made remote</b>, then change anything you like.</div>');
       this._templates(body);
       if (!rows.length) return;
     }
     this._html(body, '<div class="note"><b>This is your remote, row by row.</b> Tap a button to change, move or remove it. Tap <b>＋</b> to add one.</div>');
+    this._rowsBlock(body, rows);
+    this._html(body, `<h3 style="margin-top:22px">Pop-ups</h3><div class="sub">Tuck buttons you use less often behind one button. Tapping it slides up a panel with them.</div>
+      <div class="tbtns">${this._popups().map(p => `<button class="btn" data-act="scope" data-name="${esc(p.name)}">${this._icon(p.icon || 'mdi:dots-grid')}${esc(p.label || 'More')}</button>`).join('')}
+      <button class="btn" data-act="pop-new"><ha-icon icon="mdi:plus"></ha-icon>New pop-up</button></div>`);
+  }
+  _rowsBlock(body, rows) {
     const n = rows.length;
     rows.forEach((row, i) => {
       const selHere = this._sel && this._sel[0] === i && this._at(this._sel) !== undefined;
@@ -505,6 +603,19 @@ class OneStopRemoteCardEditor extends HTMLElement {
     });
     this._html(body, '<button class="btn big" data-act="row-add"><ha-icon icon="mdi:plus"></ha-icon>Add a row</button>');
   }
+  _viewPopup(body, pop, rows) {
+    this._html(body, `<div class="back"><button class="btn" data-act="scope-done"><ha-icon icon="mdi:arrow-left"></ha-icon>Back</button><b>${this._icon(pop.icon || 'mdi:dots-grid')}Pop-up: ${esc(pop.label || 'More')}</b></div>`);
+    const look = this._section(body, 'poplook', 'Its button on the remote', 'mdi:gesture-tap-button');
+    this._form(look, {
+      schema: () => [{ name: 'label', label: 'Words on the button', selector: { text: {} } }, { name: 'icon', label: 'Icon', selector: { icon: {} } },
+        { name: 'title', label: 'Heading at the top of the pop-up (optional)', selector: { text: {} } }],
+      data: () => { const p = this._scopePop() || {}; return { label: p.label, icon: p.icon, title: p.title }; },
+      change: v => { const p = this._scopePop(); if (!p) return false; for (const k of ['label', 'icon', 'title']) { if (v[k]) p[k] = v[k]; else delete p[k]; } return false; },
+    });
+    this._html(body, '<div class="note"><b>These buttons appear in the pop-up.</b> Tap a button to change, move or remove it. Tap <b>＋</b> to add one.</div>');
+    this._rowsBlock(body, rows);
+    this._html(body, '<div class="tbtns" style="margin-top:14px"><button class="btn warn" data-act="pop-del"><ha-icon icon="mdi:trash-can-outline"></ha-icon>Delete this pop-up</button></div>');
+  }
   _templates(body) {
     this._html(body, `<div class="tmpl">${Object.entries(TEMPLATES).map(([id, t]) => `<button class="pick" data-act="template" data-id="${id}"><ha-icon icon="${t.icon}"></ha-icon>${esc(t.name)}</button>`).join('')}</div>`);
   }
@@ -512,7 +623,7 @@ class OneStopRemoteCardEditor extends HTMLElement {
   /* ---------- picker ---------- */
   _viewPicker(body) {
     const p = this._picker;
-    this._html(body, `<div class="back"><button class="btn" data-act="picker-done"><ha-icon icon="mdi:arrow-left"></ha-icon>Back</button><b>Add to row ${p[0] + 1}</b></div>`);
+    this._html(body, `<div class="back"><button class="btn" data-act="picker-done"><ha-icon icon="mdi:arrow-left"></ha-icon>Back</button><b>Add to row ${p[0] + 1}${this._scopePop() ? ' of the pop-up' : ''}</b></div>`);
     const q = this._html(body, `<input class="search" id="q" type="search" placeholder="Search - try “power”, “netflix”, “volume”…" autocomplete="off">`);
     q.value = this._q || '';
     this._html(body, '<div id="plist"></div>');
@@ -537,18 +648,18 @@ class OneStopRemoteCardEditor extends HTMLElement {
     if (btns.length) out.push(`<h3>${esc(this._platform === 'Generic Remote' ? 'Remote' : this._platform)} buttons</h3>`, `<div class="picks">${btns.map(k => pick(k.name, nice(k.name))).join('')}</div>`);
     const apps = sources.filter(k => match(k.name, nice(k.name)));
     if (apps.length) out.push('<h3>Apps and inputs</h3>', `<div class="picks">${apps.map(k => pick(k.name, nice(k.name))).join('')}</div>`);
-    const lay = [['pick', 'data-name="spacer"', 'mdi:border-none-variant', 'Empty space', 'Leaves a gap the size of a button'], ['group', '', 'mdi:view-grid-outline', this._picker.length % 2 ? 'A stack' : 'A side-by-side group', this._picker.length % 2 ? 'Buttons on top of each other, beside the rest of the row' : 'Buttons next to each other inside this stack']].filter(m => match(m[3], m[4]));
+    const lay = [...(this._scope == null ? [['pop-new', 'data-insert="1"', 'mdi:dots-grid', 'A pop-up button', 'One button that slides up more buttons']] : []), ['pick', 'data-name="spacer"', 'mdi:border-none-variant', 'Empty space', 'Leaves a gap the size of a button'], ['group', '', 'mdi:view-grid-outline', this._picker.length % 2 ? 'A stack' : 'A side-by-side group', this._picker.length % 2 ? 'Buttons on top of each other, beside the rest of the row' : 'Buttons next to each other inside this stack']].filter(m => match(m[3], m[4]));
     if (lay.length) out.push('<h3>Layout</h3>', `<div class="picks list">${lay.map(m => row(...m)).join('')}</div>`);
     list.innerHTML = out.join('') || '<div class="note">Nothing matches that search.</div>';
   }
   _insert(item) {
     const p = this._picker;
-    this._config.rows = this._rows();
+    this._setRows(this._rows());
     const target = this._at(p);
     if (!Array.isArray(target)) return;
     target.push(item);
   }
-  _uniqueName(base) { let n = base, i = 2; while (this._el(n) || SPECIAL[n]) n = `${base}_${i++}`; return n; }
+  _uniqueName(base) { let n = base, i = 2; while (this._el(n) || SPECIAL[n] || this._popup(n)) n = `${base}_${i++}`; return n; }
 
   /* ---------- element editor ---------- */
   _keyOptions() {
@@ -762,7 +873,7 @@ class OneStopRemoteCardEditor extends HTMLElement {
         if (!builtin && nn && nn !== name && !this._el(nn) && !SPECIAL[nn]) {
           e.name = nn;
           const walk = a => a.map(x => (Array.isArray(x) ? walk(x) : x === name ? nn : x));
-          this._config.rows = walk(this._rows());
+          this._config.rows = walk(this._config.rows || []); for (const pp of this._popups()) pp.rows = walk(pp.rows || []);
           this._edit = nn; full = true;
         }
         return full;
@@ -771,7 +882,7 @@ class OneStopRemoteCardEditor extends HTMLElement {
 
     const footBox = this._html(body, '<div class="tbtns" style="margin-top:14px"></div>');
     this._dyn = () => {
-      const changed = !!this._custom(name), used = JSON.stringify(this._config.rows || []).includes(JSON.stringify(name));
+      const changed = !!this._custom(name), used = JSON.stringify(this._allRows()).includes(JSON.stringify(name));
       noteBox.innerHTML = builtin ? `<div class="note">${changed ? 'This built-in ' + TYPE_WORD[type] + ' has been changed for this remote.' : 'This is a built-in ' + TYPE_WORD[type] + '. Anything you change here only affects this remote.'}</div>` : '';
       footBox.innerHTML = `${builtin && changed ? '<button class="btn" data-act="el-reset"><ha-icon icon="mdi:restore"></ha-icon>Put it back to the built-in one</button>' : ''}
         <button class="btn" data-act="el-copy"><ha-icon icon="mdi:content-copy"></ha-icon>Make a copy</button>
@@ -846,7 +957,7 @@ class OneStopRemoteCardEditor extends HTMLElement {
     const d = b.dataset, c = this._config, path = d.path != null ? (d.path === '' ? [] : d.path.split(',').map(Number)) : null;
     const done = () => this._commit(true);
     switch (d.act) {
-      case 'tab': this._tab = d.tab; this._picker = null; this._edit = null; this._sel = null; return this._render();
+      case 'tab': this._tab = d.tab; this._picker = null; this._edit = null; this._sel = null; this._scope = null; return this._render();
       case 'sel': this._sel = this._sel && this._sel.join(',') === path.join(',') ? null : path; return this._render();
       case 'add': this._picker = path; this._q = ''; this._added = 0; return this._render();
       case 'picker-done': this._picker = null; this._sel = null; return this._render();
@@ -870,30 +981,44 @@ class OneStopRemoteCardEditor extends HTMLElement {
         if (bar) { bar.hidden = false; bar.querySelector('span').textContent = `Added ${label || this._label(item)}. Tap more to keep adding.`; }
         return;
       }
+      case 'scope': this._scope = d.name; this._sel = null; this._picker = null; this._edit = null; this._open.add('poplook'); return this._render();
+      case 'scope-done': this._scope = null; this._sel = null; this._picker = null; return this._render();
+      case 'pop-new': {
+        const name = this._uniqueName('popup');
+        (c.popups = Array.isArray(c.popups) ? c.popups : []).push({ name, label: 'More', icon: 'mdi:dots-grid', rows: [[]] });
+        if (d.insert && this._picker) this._insert(name); else { c.rows = this._config.rows || []; (c.rows[c.rows.length - 1] || c.rows[c.rows.push([]) - 1]).push(name); }
+        this._picker = null; this._sel = null; this._scope = name; this._open.add('poplook');
+        return done();
+      }
+      case 'pop-del': {
+        const name = this._scope, strip = a => a.filter(x => x !== name).map(x => (Array.isArray(x) ? strip(x) : x));
+        this._scope = null; c.popups = this._popups().filter(p => p.name !== name); if (!c.popups.length) delete c.popups;
+        c.rows = strip(c.rows || []); for (const pp of this._popups()) pp.rows = strip(pp.rows || []); this._sel = null; return done();
+      }
       case 'edit': this._edit = d.name; return this._render();
       case 'edit-done': this._edit = null; return this._render();
       case 'move': {
         const p = this._sel, arr = this._parent(p), i = p[p.length - 1], j = i + +d.d;
         if (!arr || j < 0 || j >= arr.length) return;
-        c.rows = this._rows(); const a = this._parent(p); [a[i], a[j]] = [a[j], a[i]];
+        this._setRows(this._rows()); const a = this._parent(p); [a[i], a[j]] = [a[j], a[i]];
         this._sel = [...p.slice(0, -1), j]; return done();
       }
-      case 'remove': { c.rows = this._rows(); const p = this._sel; this._parent(p).splice(p[p.length - 1], 1); this._sel = null; return done(); }
-      case 'row-add': c.rows = [...this._rows(), []]; this._sel = null; return done();
-      case 'row-del': { const r = this._rows(); r.splice(+d.i, 1); c.rows = r; this._sel = null; return done(); }
-      case 'row-move': { const r = this._rows(), i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; c.rows = r; this._sel = null; return done(); }
-      case 'template': c.rows = clone(TEMPLATES[d.id].rows); this._tab = 'buttons'; this._sel = null; return done();
+      case 'remove': { this._setRows(this._rows()); const p = this._sel; this._parent(p).splice(p[p.length - 1], 1); this._sel = null; return done(); }
+      case 'row-add': this._setRows([...this._rows(), []]); this._sel = null; return done();
+      case 'row-del': { const r = this._rows(); r.splice(+d.i, 1); this._setRows(r); this._sel = null; return done(); }
+      case 'row-move': { const r = this._rows(), i = +d.i, j = i + +d.d; if (j < 0 || j >= r.length) return; [r[i], r[j]] = [r[j], r[i]]; this._setRows(r); this._sel = null; return done(); }
+      case 'template': this._scope = null; c.rows = clone(TEMPLATES[d.id].rows); this._tab = 'buttons'; this._sel = null; return done();
       case 'el-reset': c.custom_actions = (c.custom_actions || []).filter(a => a.name !== this._edit); return done();
       case 'el-copy': {
         const name = this._uniqueName(this._edit + '_copy'), copy = { type: 'button', ...clone(this._el(this._edit)), name };
         (c.custom_actions = c.custom_actions || []).push(copy);
         const walk = a => { for (let i = 0; i < a.length; i++) { if (Array.isArray(a[i])) { if (walk(a[i])) return true; } else if (a[i] === this._edit) { a.splice(i + 1, 0, name); return true; } } return false; };
-        c.rows = this._rows(); if (!walk(c.rows)) (c.rows[c.rows.length - 1] || c.rows[c.rows.push([]) - 1]).push(name);
+        const rr = this._rows(); if (!walk(rr)) (rr[rr.length - 1] || rr[rr.push([]) - 1]).push(name); this._setRows(rr);
         this._edit = name; return done();
       }
       case 'el-delete': {
         const name = this._edit, strip = a => a.filter(x => x !== name).map(x => (Array.isArray(x) ? strip(x) : x));
-        c.custom_actions = (c.custom_actions || []).filter(a => a.name !== name); c.rows = strip(this._rows()); this._edit = null; return done();
+        c.custom_actions = (c.custom_actions || []).filter(a => a.name !== name); c.rows = strip(c.rows || []); for (const pp of this._popups()) pp.rows = strip(pp.rows || []); this._edit = null; return done();
       }
     }
   }
