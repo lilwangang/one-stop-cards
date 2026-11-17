@@ -2913,7 +2913,7 @@ console.info(`%c ONE STOP %c Plex card ${VERSION} `, 'background:#375374;color:#
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -3187,7 +3187,7 @@ class OneStopStreamingCard extends HTMLElement {
   }
   async _wake() {
     const c = this._cfg, h = this._hass, st = h.states[c.apple_tv]?.state;
-    if (['off', 'standby', 'unavailable', 'unknown'].includes(st)) { await h.callService('media_player', 'turn_on', { entity_id: c.apple_tv }).catch(() => {}); await new Promise(r => setTimeout(r, 2500)); }
+    if (['off', 'standby', 'unavailable', 'unknown'].includes(st)) { await h.callService('media_player', 'turn_on', { entity_id: c.apple_tv }).catch(() => {}); await new Promise(r => setTimeout(r, 4000)); }
   }
   async _openApp() {
     const c = this._cfg, S = SERVICES[this._svc]; this._buzz();
@@ -3197,7 +3197,8 @@ class OneStopStreamingCard extends HTMLElement {
   async _play(url, title) {
     const c = this._cfg, S = SERVICES[this._svc]; this._buzz();
     if (!url) return this._openApp();
-    try { await this._wake(); await this._hass.callService('media_player', 'play_media', { entity_id: c.apple_tv, media_content_type: 'url', media_content_id: url }); this._toast(`Opening ${title} in ${S.name}…`); }
+    const open = () => this._hass.callService('media_player', 'play_media', { entity_id: c.apple_tv, media_content_type: 'url', media_content_id: url });
+    try { await this._wake(); try { await open(); } catch (e) { await new Promise(r => setTimeout(r, 2500)); await open(); } this._toast(`Opening ${title} in ${S.name}…`); }
     catch (e) { this._toast('That title couldn’t open directly, opening the app instead.'); this._openApp(); }
   }
 }
