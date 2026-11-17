@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -158,6 +158,13 @@ const Recent = {
     }
     out.sort((a, b) => b.ts - a.ts); this._hist = out; this._histT = Date.now(); return out;
   },
+  _nf: null, _nfT: 0,
+  async netflix(hass) {                              // real Netflix history via the One Stop Netflix history add-on
+    if (!hass?.services?.one_stop_netflix?.get_history) return null;
+    if (this._nf && Date.now() - this._nfT < 120000) return this._nf;
+    const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: { limit: 40 }, return_response: true });
+    this._nf = (r?.response?.items || []).map(x => ({ ...x, src: 'nf', room: x.profile ? 'Netflix · ' + x.profile : '' })); this._nfT = Date.now(); return this._nf;
+  },
   _match: new Map(),
   async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
     const k = cc + pkg + title.toLowerCase(); if (this._match.has(k)) return this._match.get(k);
@@ -298,13 +305,15 @@ class OneStopStreamingCard extends HTMLElement {
     paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
     let tv = [];
     try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) {}
+    if (svc === 'netflix') { try { const nf = await Recent.netflix(this._hass); if (nf) tv = [...nf, ...tv]; } catch (e) { this._nfErr = e.message || String(e); } }
     const seen = new Set(saved.map(x => (x.t || '').toLowerCase())), fromTv = [];
-    for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, src: 'tv' }); }
+    for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, url: x.url, progress: x.progress, src: 'tv' }); }
     let all = [...saved, ...fromTv].sort((a, b) => b.ts - a.ts).slice(0, n);
     paint(all);
     if (!pkg) return;
     for (const x of all.filter(y => y.src === 'tv')) {           // add posters for what the TV reported
       const hit = await Recent.resolve(cc, pkg, x.t); if (this._svc !== svc) return;
+      if (!hit && x.url) { x.o = x.o || 'SHOW'; }
       if (hit) { x.id = hit.id; x.p = hit.content?.posterUrl; x.y = hit.content?.originalReleaseYear; x.o = hit.objectType; this._items = this._items || new Map(); this._items.set(hit.id, hit); }
     }
     paint(all);
@@ -321,6 +330,7 @@ class OneStopStreamingCard extends HTMLElement {
     b.querySelectorAll('[data-ri]').forEach(el => el.addEventListener('click', () => {
       const x = this._recent[+el.dataset.ri]; const full = x.id && this._items?.get(x.id);
       if (full) return this._open(full);
+      if (!x.id && x.url) { this._buzz(); return this._play(x.url, x.t); }
       if (x.id && x.url) return this._open({ id: x.id, objectType: x.o, content: { title: x.t, posterUrl: x.p, originalReleaseYear: x.y }, offers: [{ standardWebURL: x.url }] });
       this._buzz(); this._openApp();
     }));
@@ -442,7 +452,7 @@ const LABELS = {
 };
 const HELPERS = {
   services: 'Only titles on these services are shown, so everything listed is something this home can watch.',
-  show_recent: 'Titles opened from this card, plus what the Apple TVs report playing in each app (Netflix doesn’t report titles, so only titles opened here show for Netflix).',
+  show_recent: 'Titles opened from this card, plus what the Apple TVs report playing in each app. For Netflix, connect the account (button above) to see real watch history.',
   netflix_plan: 'Standard with Ads is missing some titles, so they are left out. Standard and Premium have the same titles.',
 };
 class OneStopStreamingCardEditor extends HTMLElement {
@@ -467,6 +477,21 @@ class OneStopStreamingCardEditor extends HTMLElement {
     } else for (const [k, val] of Object.entries(clean)) if (!ROOM_KEYS.includes(k) && !same(val, inherited[k])) cfg[k] = val;
     this._emit(cfg);
   }
+  _netflixPanel(data) {
+    if (!this._nfBox) { this._nfBox = document.createElement('div'); this.insertBefore(this._nfBox, this._form); }
+    const on = (data.services || []).includes('netflix') && data.show_recent !== false, linked = !!this._hass?.services?.one_stop_netflix?.get_history;
+    this._nfBox.style.cssText = on ? 'margin:0 0 12px;padding:12px;border-radius:12px;font-size:14px;line-height:1.4;display:flex;gap:12px;align-items:center;border:1px solid rgba(229,9,20,.45);background:rgba(229,9,20,.08)' : 'display:none';
+    if (!on) return;
+    const key = String(linked); if (this._nfKey === key) return; this._nfKey = key;
+    this._nfBox.innerHTML = linked
+      ? '<ha-icon icon="mdi:check-circle" style="color:#4caf50"></ha-icon><div style="flex:1"><b>Netflix account connected.</b> Recently played shows what was really watched on Netflix.</div><button data-nf style="all:unset;cursor:pointer;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.1);white-space:nowrap">Add a profile</button>'
+      : '<ha-icon icon="mdi:netflix" style="color:#e50914"></ha-icon><div style="flex:1"><b>Show real Netflix history?</b> Netflix doesn’t tell the TV what’s playing, so connect the Netflix account to fill Recently played.</div><button data-nf style="all:unset;cursor:pointer;padding:8px 12px;border-radius:10px;background:#e50914;color:#fff;font-weight:600;white-space:nowrap">Connect Netflix</button>';
+    this._nfBox.querySelector('[data-nf]').addEventListener('click', () => {
+      if (!linked && !Object.keys(this._hass?.config?.components || {}).length) return;
+      const url = '/config/integrations/dashboard/add?domain=one_stop_netflix';
+      history.pushState(null, '', url); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+    });
+  }
   _render() {
     if (!this._config) return;
     if (!this._form) {
@@ -477,6 +502,7 @@ class OneStopStreamingCardEditor extends HTMLElement {
     const inh = this._inherited(), own = this._ownStyle(), room = Object.fromEntries(Object.entries(this._config).filter(([k]) => ROOM_KEYS.includes(k)));
     const data = this._all ? { ...inh, ...room } : { ...inh, ...this._config }; data.edit_all = !!this._all; data.reset_style = false; this._shown = data;
     this._note.textContent = this._all ? 'Master edit is on: look changes apply to every Streaming card. TV and subscriptions still apply to this card only.' : 'Pick the country and the services this home pays for so every title shown is one they can watch.';
+    this._netflixPanel(data);
     this._form.hass = this._hass;
     this._form.schema = [{ name: 'edit_all', selector: toggle }, ...(!this._all && own.length ? [{ name: 'reset_style', selector: toggle }] : []), ...schema(data)];
     this._form.data = data;
