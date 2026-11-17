@@ -48,6 +48,17 @@ rest_command:
     timeout: 20
 ```
 
+### One Stop - Music card
+A Sonos / Apple Music style player for Music Assistant speakers. Big artwork with a blurred backdrop, scrubber, shuffle/repeat and volume; a "Play on" sheet to switch rooms, group speakers and set each room's volume; and your library (recently played, playlists, favourite songs) with search. Tap anything to play it on the current room.
+
+```yaml
+type: custom:one-stop-music-card
+players:
+  - media_player.living_room_music_assistant
+  - entity: media_player.kitchen_music_assistant
+    name: Kitchen
+```
+
 ## Install
 
 ### HACS (recommended)
