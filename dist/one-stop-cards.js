@@ -3312,7 +3312,7 @@ window.__oneStopStreaming = { SERVICES, JWQ };
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -3506,6 +3506,7 @@ class OneStopMusicCard extends HTMLElement {
   _activeId() {
     const ps = this._players();
     if (this._active && ps.some(p => p.entity === this._active)) return this._active;
+    if (this._cfg.start_player && ps.some(p => p.entity === this._cfg.start_player)) return this._cfg.start_player;   // e.g. opened from a room's remote
     const real = p => ACTIVE.includes(p.st?.state) && p.st.attributes.media_title;
     const playing = ps.find(p => p.st?.state === 'playing' && real(p)) || ps.find(real);
     return (playing || ps[0]).entity;
@@ -3828,7 +3829,7 @@ ${" ".repeat(o.indent*a)}`}function tW(o,a,r,c){let s="";for(let l=0,u=r.items.l
  */
 (() => {
 const init = E => {
-const VERSION = '1.1.0'
+const VERSION = '1.2.0'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -3920,7 +3921,7 @@ function compile(config) {
     c.custom_actions = [...(Array.isArray(c.custom_actions) ? c.custom_actions : [])];
     for (const p of pops) {
       const i = c.custom_actions.findIndex(a => a && a.name === p.name), base = i >= 0 ? c.custom_actions[i] : {};
-      const btn = { ...base, type: 'button', name: p.name, icon: p.icon || base.icon || 'mdi:dots-grid', label: p.label ?? base.label ?? 'More',
+      const btn = { ...base, type: 'button', name: p.name, icon: p.icon || base.icon || (p.card ? 'mdi:card-outline' : 'mdi:dots-grid'), label: p.label ?? base.label ?? 'More',
         tap_action: { action: 'fire-dom-event', event_type: POPUP_EVENT, popup: p.name }, hold_action: { action: 'none' }, double_tap_action: { action: 'none' } };
       if (p.styles) btn.styles = p.styles;
       if (p.look) btn.look = p.look;
@@ -3991,6 +3992,23 @@ class OneStopRemoteCard extends E.Card {
       this.shadowRoot.appendChild(d);
     }
     d.querySelector('.head span').textContent = p.title || p.label || 'More';
+    d.style.width = p.width ? `min(${p.width},100vw)` : '';
+    if (p.card && typeof p.card === 'object') {                     // any dashboard card, e.g. the Music card
+      const token = this._popToken = {};
+      d.querySelector('.body').replaceChildren();
+      if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute('open', ''); } }
+      (async () => {
+        let el;
+        try { const helpers = await window.loadCardHelpers(); el = helpers.createCardElement(p.card); }
+        catch (e) { el = document.createElement('div'); el.textContent = 'Could not load this card: ' + (e?.message || e); }
+        if (this._popToken !== token) return;
+        el.hass = this.hass;
+        d.querySelector('.body').replaceChildren(el);
+        this._popCard = el;
+      })();
+      return;
+    }
+    this._popToken = null;
     const inner = document.createElement(TAG);
     const cfg = { ...raw, rows: Array.isArray(p.rows) ? p.rows : [], title: undefined,
       styles: [raw.styles, 'ha-card{background:none;--ha-card-background:transparent;border:none;border-top:none;border-radius:0;box-shadow:none;padding:4px 2px 2px;backdrop-filter:none;-webkit-backdrop-filter:none;}'].filter(Boolean).join('\n') };

@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -199,6 +199,7 @@ class OneStopMusicCard extends HTMLElement {
   _activeId() {
     const ps = this._players();
     if (this._active && ps.some(p => p.entity === this._active)) return this._active;
+    if (this._cfg.start_player && ps.some(p => p.entity === this._cfg.start_player)) return this._cfg.start_player;   // e.g. opened from a room's remote
     const real = p => ACTIVE.includes(p.st?.state) && p.st.attributes.media_title;
     const playing = ps.find(p => p.st?.state === 'playing' && real(p)) || ps.find(real);
     return (playing || ps[0]).entity;
