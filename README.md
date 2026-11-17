@@ -59,6 +59,21 @@ players:
     name: Kitchen
 ```
 
+### One Stop - Remote card
+A remote control for TVs, streaming boxes, receivers and anything else in Home Assistant: buttons, arrow pad, touchpad, round pad, sliders, number pad, app shortcuts and your own buttons.
+
+The editor is built to be used without reading a manual:
+
+- **Device** - pick the kind of device (Android TV, Apple TV, Samsung, LG webOS, Roku, Fire TV, Sony BRAVIA, Kodi, Philips, Denon, Yamaha, Jellyfin, Unfolded Circle, Unified Remote, or any infrared / RF blaster) and its remote and media player.
+- **Buttons** - your remote shown row by row. Tap **+** to add from a searchable list, tap a button to change, move or remove it.
+- Each button has **How it looks** (words, icon, size, colour, "light up while something is on") and **What it does** for tap, press-and-hold and double-tap, chosen in plain words: press a remote button, open an app, turn something on or off, do something in Home Assistant, go to a page, type on the TV, and more.
+- **Look** - button size, style, corners, spacing and accent colour for the whole remote.
+- Everything advanced is still there under **Advanced**: momentary (held-down) actions, two-finger and drag gestures, timings, keyboard shortcuts, templates, custom icons, custom CSS and raw YAML.
+
+Already using Universal Remote Card? Change the card's type to `custom:one-stop-remote-card` and the same settings carry over.
+
+The remote engine inside this card is [Universal Remote Card](https://github.com/Nerwyn/universal-remote-card) by Nerwyn, used under the Apache License 2.0 (see `vendor/remote-engine`). One Stop adds the look and the visual editor.
+
 ## Install
 
 ### HACS (recommended)
