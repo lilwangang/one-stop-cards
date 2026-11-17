@@ -4,9 +4,8 @@
  * this file adds the One Stop look and a plain-English visual editor on top of it.
  */
 (() => {
-const E = window.__oneStopRemoteEngine;
-if (!E) { console.error('One Stop - Remote card: engine missing'); return; }
-const VERSION = '1.0.0';
+const init = E => {
+const VERSION = '1.0.1';
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -917,4 +916,14 @@ if (!window.customCards.some(c => c.type === TAG)) window.customCards.push({
 });
 console.info(`%c ONE STOP %c Remote card ${VERSION} `, 'background:#375374;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px', 'background:#e9eef5;color:#375374;border-radius:0 3px 3px 0;padding:2px 4px');
 window.__oneStopRemote = { compile, cardCss, elementCss, actionToForm, formToAction, VERSION };
+};
+// The engine finishes loading a moment after this file runs, so wait for it.
+let tries = 0;
+const go = () => {
+  const E = window.__oneStopRemoteEngine;
+  if (E) return init(E);
+  if (++tries > 1500) return console.error('One Stop - Remote card: engine missing');
+  setTimeout(go, 20);
+};
+go();
 })();
