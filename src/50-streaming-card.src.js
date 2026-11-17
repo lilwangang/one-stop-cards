@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -214,7 +214,7 @@ class OneStopStreamingCard extends HTMLElement {
     const vars = [`--ac:${col.join(',')}`, `--pad:${{ compact: 12, standard: 18, roomy: 24 }[c.card_spacing] || 18}px`, `--radius:${{ square: '8px', rounded: '22px', extra_round: '32px' }[c.corners] || '22px'}`,
       `--font:${font}`, `--off-bg:${offBg}`, `--title:${{ small: '16px', medium: '20px', large: '24px', extra_large: '28px' }[c.title_size] || '20px'}`, `--pr:${{ square: '4px', rounded: '12px', extra_round: '20px' }[c.poster_shape] || '12px'}`].join(';');
     const pkg = this._pkg(this._svc), room = c.room_name || this._hass.states[c.apple_tv]?.attributes?.friendly_name || 'TV';
-    const planWord = this._svc === 'netflix' ? (c.netflix_plan === 'ads' ? 'Standard with Ads plan' : 'Standard / Premium plan') : '';
+    const planWord = this._svc === 'netflix' ? ({ ads: 'Standard with Ads plan', premium: 'Premium plan' }[c.netflix_plan] || 'Standard plan') : '';
     const tabs = c.show_tabs && list.length > 1 ? `<div class="tabs">${list.map(s => `<button class="tab ${s === this._svc ? 'on' : ''}" data-svc="${s}" style="--tc:${SERVICES[s].color.join(',')}">${esc(SERVICES[s].name)}</button>`).join('')}</div>` : '';
     const sec = (k, t) => `<div class="sec" data-sec="${k}"><div class="sh"><h2>${esc(t)}</h2><span class="ct" data-ct></span></div><div data-body><div class="empty">Loading…</div></div></div>`;
     const body = !pkg
@@ -313,7 +313,7 @@ const schema = d => {
       { name: 'country', selector: sel(COUNTRIES) },
       { name: 'services', selector: { select: { multiple: true, mode: 'list', options: Object.entries(SERVICES).map(([value, s]) => ({ value, label: s.name + (s.pkg ? '' : ' (opens the app only)') })) } } },
       grid([
-        { name: 'netflix_plan', selector: sel([['standard', 'Standard or Premium'], ['ads', 'Standard with Ads']]) },
+        { name: 'netflix_plan', selector: sel([['ads', 'Standard with Ads'], ['standard', 'Standard'], ['premium', 'Premium']]) },
         { name: 'paramount_plan', selector: sel([['standard', 'Standard'], ['premium', 'Premium'], ['ads', 'Basic with Ads']]) },
         { name: 'default_service', selector: sel(Object.entries(SERVICES).map(([k, s]) => [k, s.name])) },
       ]),
@@ -350,7 +350,7 @@ const LABELS = {
 };
 const HELPERS = {
   services: 'Only titles on these services are shown, so everything listed is something this home can watch.',
-  netflix_plan: 'The ads plan is missing some titles; this keeps the list accurate.',
+  netflix_plan: 'Standard with Ads is missing some titles, so they are left out. Standard and Premium have the same titles.',
 };
 class OneStopStreamingCardEditor extends HTMLElement {
   setConfig(config) { this._config = { ...config }; this._render(); }
