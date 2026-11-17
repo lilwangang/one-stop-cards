@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -158,12 +158,20 @@ const Recent = {
     }
     out.sort((a, b) => b.ts - a.ts); this._hist = out; this._histT = Date.now(); return out;
   },
-  _nf: null, _nfT: 0,
+  _nf: {}, profiles: [],
+  NFP: 'one-stop-netflix-profile',
+  nfProfile() { try { return localStorage.getItem(this.NFP) || ''; } catch (e) { return ''; } },
+  setNfProfile(g) { try { localStorage.setItem(this.NFP, g); } catch (e) {} },
   async netflix(hass) {                              // real Netflix history via the One Stop Netflix history add-on
     if (!hass?.services?.one_stop_netflix?.get_history) return null;
-    if (this._nf && Date.now() - this._nfT < 120000) return this._nf;
-    const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: { limit: 40 }, return_response: true });
-    this._nf = (r?.response?.items || []).map(x => ({ ...x, src: 'nf', room: x.profile ? 'Netflix · ' + x.profile : '' })); this._nfT = Date.now(); return this._nf;
+    const want = this.nfProfile(), hit = this._nf[want];
+    if (hit && Date.now() - hit.t < 120000) return hit.v;
+    const data = { limit: 40 }; if (want) data.profile = want;
+    const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: data, return_response: true });
+    const res = r?.response || {};
+    this.profiles = res.profiles || []; this.active = res.profile || want;
+    const v = (res.items || []).map(x => ({ ...x, src: 'nf', room: '' }));
+    this._nf[want] = { t: Date.now(), v }; return v;
   },
   _match: new Map(),
   async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
@@ -238,6 +246,10 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:11;padding:12px 18px;border-radius:14px;background:rgba(20,22,28,.95);border:1px solid rgba(var(--ac),.6);font-weight:600;font-size:15px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center}
 .sz-small{--pw:104px}.sz-medium{--pw:128px}.sz-large{--pw:156px}.sz-extra_large{--pw:188px}
 @container oss (max-width:420px){.sz-medium{--pw:112px}.sz-large{--pw:136px}}
+.nfp{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px}.nfp::-webkit-scrollbar{display:none}
+.nfp button{flex:none;height:40px;padding:0 14px 0 6px;border-radius:999px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16)}
+.nfp button span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.15)}
+.nfp button.on{background:rgba(229,9,20,.85);border-color:#e50914}.nfp button.on span{background:rgba(0,0,0,.25)}
 .nfc{margin:0 0 12px;padding:14px;border-radius:16px;background:rgba(229,9,20,.10);border:1px solid rgba(229,9,20,.45);display:flex;flex-direction:column;gap:10px}
 .nfc .r{display:flex;align-items:center;gap:10px}.nfc .r ha-icon{color:#e50914;--mdc-icon-size:26px;flex:none}
 .nfc b{font-size:15px}.nfc p{margin:0;font-size:13px;opacity:.8;line-height:1.4}
@@ -311,11 +323,14 @@ class OneStopStreamingCard extends HTMLElement {
   async _loadRecent(pkg) {
     const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
     const paint = list => { if (this._svc !== svc) return; this._fillRecent(list); };
-    const saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
-    paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
+    let saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
+    const nfLinked = svc === 'netflix' && !!this._hass?.services?.one_stop_netflix?.get_history;
+    if (!nfLinked) paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
     let tv = [];
-    try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) {}
-    if (svc === 'netflix') { try { const nf = await Recent.netflix(this._hass); if (nf) tv = [...nf, ...tv]; } catch (e) { this._nfErr = e.message || String(e); } }
+    if (nfLinked) {                       // connected: show exactly what the chosen Netflix profile watched
+      saved = [];
+      try { tv = await Recent.netflix(this._hass) || []; } catch (e) { this._nfErr = e.message || String(e); try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e2) {} }
+    } else { try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) {} }
     const seen = new Set(saved.map(x => (x.t || '').toLowerCase())), fromTv = [];
     for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, url: x.url, progress: x.progress, src: 'tv' }); }
     let all = [...saved, ...fromTv].sort((a, b) => b.ts - a.ts).slice(0, n);
@@ -337,8 +352,9 @@ class OneStopStreamingCard extends HTMLElement {
       if (show) { if (!box) { box = document.createElement('div'); box.dataset.nfc = ''; s.insertBefore(box, b); } this._nfcRender(box); }
       else if (box) box.remove();
     }
-    if (!list.length) { b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
+    if (!list.length) { this._nfChips(s); b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
     this._recent = list;
+    this._nfChips(s);
     b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p);
       return `<button class="it" data-ri="${i}" aria-label="${esc(x.t)}"><div class="ph">${src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="">` : ''}<div class="fb ${src ? 'hide' : ''}">${esc(x.t)}</div><span class="badge">${esc(ago(x.ts))}</span></div><div class="nm">${esc(x.t)}</div><div class="sb">${esc(x.ep || x.room || (x.o === 'SHOW' ? 'Series' : x.y ? 'Movie · ' + x.y : ''))}</div></button>`; }).join('')}</div>`;
     s.querySelector('[data-ct]').textContent = String(list.length);
@@ -349,6 +365,20 @@ class OneStopStreamingCard extends HTMLElement {
       if (!x.id && x.url) { this._buzz(); return this._play(x.url, x.t); }
       if (x.id && x.url) return this._open({ id: x.id, objectType: x.o, content: { title: x.t, posterUrl: x.p, originalReleaseYear: x.y }, offers: [{ standardWebURL: x.url }] });
       this._buzz(); this._openApp();
+    }));
+  }
+  _nfChips(s) {                                   // "Whose history?" profile buttons (remembered on this phone/tablet)
+    let bar = s.querySelector('[data-nfp]');
+    const ps = this._svc === 'netflix' ? Recent.profiles : [];
+    if (ps.length < 2) { bar?.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.dataset.nfp = ''; bar.className = 'nfp'; s.insertBefore(bar, s.querySelector('[data-body]')); }
+    const on = Recent.nfProfile() || Recent.active;
+    bar.innerHTML = ps.map(p => `<button class="${p.guid === on ? 'on' : ''}" data-g="${esc(p.guid)}"><span>${esc((p.name || '?')[0].toUpperCase())}</span>${esc(p.name)}</button>`).join('');
+    bar.querySelectorAll('[data-g]').forEach(el => el.addEventListener('click', () => {
+      if (el.dataset.g === on) return; this._buzz(); Recent.setNfProfile(el.dataset.g);
+      bar.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === el));
+      const body = s.querySelector('[data-body]'); if (body) body.innerHTML = '<div class="empty">Loading ' + esc(el.textContent.slice(1)) + '’s history…</div>';
+      this._loadRecent(this._pkg('netflix'));
     }));
   }
   /* ---- connect Netflix right from the card (admin only) ---- */
