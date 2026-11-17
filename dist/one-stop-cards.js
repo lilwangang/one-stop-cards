@@ -2913,7 +2913,7 @@ console.info(`%c ONE STOP %c Plex card ${VERSION} `, 'background:#375374;color:#
  */
 (() => {
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -3146,6 +3146,16 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:11;padding:12px 18px;border-radius:14px;background:rgba(20,22,28,.95);border:1px solid rgba(var(--ac),.6);font-weight:600;font-size:15px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center}
 .sz-small{--pw:104px}.sz-medium{--pw:128px}.sz-large{--pw:156px}.sz-extra_large{--pw:188px}
 @container oss (max-width:420px){.sz-medium{--pw:112px}.sz-large{--pw:136px}}
+.nfc{margin:0 0 12px;padding:14px;border-radius:16px;background:rgba(229,9,20,.10);border:1px solid rgba(229,9,20,.45);display:flex;flex-direction:column;gap:10px}
+.nfc .r{display:flex;align-items:center;gap:10px}.nfc .r ha-icon{color:#e50914;--mdc-icon-size:26px;flex:none}
+.nfc b{font-size:15px}.nfc p{margin:0;font-size:13px;opacity:.8;line-height:1.4}
+.nfc input{all:unset;box-sizing:border-box;width:100%;height:48px;padding:0 14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);font-size:17px;color:#fff}
+.nfc input.code{letter-spacing:6px;text-align:center;font-size:22px}
+.nfc .go{height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:16px;background:#e50914;color:#fff}
+.nfc .lnk{font-size:13px;opacity:.75;text-align:center;padding:4px}
+.nfc .err{font-size:13px;color:#ffb4b4}.nfc .pf{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.nfc .pf button{height:48px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:600}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
 
@@ -3228,7 +3238,13 @@ class OneStopStreamingCard extends HTMLElement {
   }
   _fillRecent(list) {
     const s = this.shadowRoot.querySelector('[data-sec="recent"]'); if (!s) return;
-    const b = s.querySelector('[data-body]');
+    let b = s.querySelector('[data-body]');
+    if (this._svc === 'netflix') {
+      let box = s.querySelector('[data-nfc]');
+      const show = this._hass?.user?.is_admin && (!this._hass.services?.one_stop_netflix?.get_history || this._nfc);
+      if (show) { if (!box) { box = document.createElement('div'); box.dataset.nfc = ''; s.insertBefore(box, b); } this._nfcRender(box); }
+      else if (box) box.remove();
+    }
     if (!list.length) { b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
     this._recent = list;
     b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p);
@@ -3242,6 +3258,94 @@ class OneStopStreamingCard extends HTMLElement {
       if (x.id && x.url) return this._open({ id: x.id, objectType: x.o, content: { title: x.t, posterUrl: x.p, originalReleaseYear: x.y }, offers: [{ standardWebURL: x.url }] });
       this._buzz(); this._openApp();
     }));
+  }
+  /* ---- connect Netflix right from the card (admin only) ---- */
+  _nfcRender(box) {
+    const st = this._nfc || { step: 'intro' }, m = st.msg ? `<div class="err">${esc(st.msg)}</div>` : '';
+    const busy = t => `<div class="r"><div class="spin"></div><p>${esc(t)}</p></div>`;
+    const head = '<div class="r"><ha-icon icon="mdi:netflix"></ha-icon><div><b>See what you really watched on Netflix</b><p>Sign in once and Recently played shows this profile’s history from every device.</p></div></div>';
+    let h;
+    switch (st.step) {
+      case 'intro': h = `${head}<button class="go" data-n="begin">Connect Netflix</button>`; break;
+      case 'busy': h = busy(st.text || 'Working…'); break;
+      case 'email': h = `<div class="r"><ha-icon icon="mdi:netflix"></ha-icon><b>Netflix email or phone number</b></div><input type="email" autocomplete="username" inputmode="email" data-in placeholder="name@example.com" value="${esc(st.email || '')}">${m}<button class="go" data-n="email">Send me a code</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
+      case 'code': h = `<div class="r"><ha-icon icon="mdi:email-fast-outline"></ha-icon><div><b>Enter the code Netflix sent</b><p>Check ${esc(st.email || 'your email')}. It expires in 15 minutes.</p></div></div><input class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-in>${m}<button class="go" data-n="code">Sign in</button><button class="lnk" data-n="restart">Send a new code</button>`; break;
+      case 'password': h = `<div class="r"><ha-icon icon="mdi:lock-outline"></ha-icon><b>Netflix is asking for the password</b></div><input type="password" autocomplete="current-password" data-in>${m}<button class="go" data-n="password">Sign in</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
+      case 'profile': h = `<div class="r"><ha-icon icon="mdi:account-multiple"></ha-icon><b>Whose history should show here?</b></div><div class="pf">${(st.options || []).map(o => `<button data-n="profile" data-v="${esc(o.value)}">${esc(o.label)}</button>`).join('')}</div>${m}`; break;
+      case 'done': h = `<div class="r"><ha-icon icon="mdi:check-circle" style="color:#4caf50"></ha-icon><div><b>Netflix connected</b><p>${esc(st.text || '')}</p></div></div>`; break;
+      default: h = `${head}${m}<button class="go" data-n="begin">Try again</button>`;
+    }
+    box.className = 'nfc'; box.innerHTML = h;
+    const inp = box.querySelector('[data-in]'); if (inp) { setTimeout(() => inp.focus(), 50); inp.addEventListener('keydown', e => { if (e.key === 'Enter') box.querySelector('.go')?.click(); }); }
+    box.querySelectorAll('[data-n]').forEach(el => el.addEventListener('click', () => this._nfcAct(el.dataset.n, inp?.value?.trim(), el.dataset.v)));
+  }
+  _nfcSet(v) { this._nfc = v; const box = this.shadowRoot.querySelector('[data-nfc]'); if (box) this._nfcRender(box); else this._loadRecent(this._pkg(this._svc)); }
+  async _nfcAct(a, val, v) {
+    const h = this._hass, st = this._nfc || {};
+    const flow = async (data) => this._hass.callApi('POST', `config/config_entries/flow/${(this._nfc || st).flow}`, data);
+    const handle = r => {
+      if (r.type === 'create_entry' || (r.type === 'abort' && ['already_configured', 'reauth_successful'].includes(r.reason))) {
+        Recent._nf = null; this._nfcSet({ step: 'done', text: 'Your Netflix history will appear here in a moment.' });
+        const wait = () => { if (this._hass.services?.one_stop_netflix?.get_history) { setTimeout(() => { this._nfc = null; this._loadRecent(this._pkg('netflix')); }, 2500); } else setTimeout(wait, 1000); }; wait(); return;
+      }
+      if (r.type === 'abort') return this._nfcSet({ step: 'error', msg: ({ signed_out: 'Netflix signed in but then refused the history request. Try again.', cannot_read: 'Signed in, but Netflix answered in a way this card doesn’t understand yet.' })[r.reason] || 'Netflix stopped the sign-in (' + r.reason + ').' });
+      const msg = r.errors?.base ? (r.description_placeholders?.message || ({ wrong_code: 'That code didn’t work. Check it, or send a new one.', wrong_password: 'That password didn’t work.' })[r.errors.base] || r.errors.base) : '';
+      const cur = this._nfc || st;
+      if (r.step_id === 'profile') { const opts = r.data_schema?.[0]?.selector?.select?.options || []; return this._nfcSet({ ...cur, flow: r.flow_id, step: 'profile', options: opts, msg }); }
+      if (['email', 'code', 'password'].includes(r.step_id)) return this._nfcSet({ ...cur, flow: r.flow_id, step: r.step_id, msg });
+      if (r.step_id === 'cookies') return this._nfcSet({ step: 'error', msg: 'The sign-in helper isn’t running in Home Assistant. Start “One Stop Sign-in Helper” in Settings → Add-ons, then try again.' });
+      this._nfcSet({ step: 'error', msg: 'Unexpected step: ' + (r.step_id || r.type) });
+    };
+    try {
+      if (a === 'cancel') { if (st.flow) h.callApi('DELETE', `config/config_entries/flow/${st.flow}`).catch(() => {}); return this._nfcSet(null); }
+      if (a === 'begin' || a === 'restart') {
+        if (st.flow) h.callApi('DELETE', `config/config_entries/flow/${st.flow}`).catch(() => {});
+        this._nfcSet({ step: 'busy', text: 'Opening Netflix sign-in…' });
+        const open = () => this._hass.callApi('POST', 'config/config_entries/flow', { handler: 'one_stop_netflix', show_advanced_options: false });
+        let r;
+        try { r = await open(); }
+        catch (e) {                                   // integration not installed on this home yet
+          if (!/handler|not found|invalid/i.test(e?.body?.message || e?.message || '')) throw e;
+          if (!(await this._nfcInstall())) return;
+          this._nfcSet({ step: 'busy', text: 'Opening Netflix sign-in…' }); r = await open();
+        }
+        if (r.type === 'menu') r = await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { next_step_id: 'email' });
+        this._nfc = { flow: r.flow_id, email: st.email };
+        if (a === 'restart' && st.email) { this._nfcSet({ ...this._nfc, step: 'busy', text: 'Asking Netflix for a new code…' }); return handle(await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { email: st.email })); }
+        return handle(r);
+      }
+      if (!val && a !== 'profile') return this._nfcSet({ ...st, msg: 'Fill this in first.' });
+      if (a === 'email') { this._nfcSet({ ...st, email: val, step: 'busy', text: 'Asking Netflix to send a code…' }); return handle(await flow({ email: val })); }
+      if (a === 'code') { this._nfcSet({ ...st, step: 'busy', text: 'Signing in to Netflix…' }); return handle(await flow({ code: val })); }
+      if (a === 'password') { this._nfcSet({ ...st, step: 'busy', text: 'Signing in to Netflix…' }); return handle(await flow({ password: val })); }
+      if (a === 'profile') { this._nfcSet({ ...st, step: 'busy', text: 'Opening that profile…' }); return handle(await flow({ profile: v })); }
+    } catch (e) { this._nfcSet({ step: 'error', msg: (e?.body?.message || e?.message || String(e)).slice(0, 200) }); }
+  }
+  async _nfcInstall() {                         // first time on a home: install the helper add-on + integration, then restart
+    const h = this._hass, sv = (endpoint, method = 'get', data) => h.callWS({ type: 'supervisor/api', endpoint, method, data, timeout: null });
+    try {
+      if (!h.config.components.includes('hassio')) { this._nfcSet({ step: 'error', msg: 'This Home Assistant can’t run add-ons, so Netflix sign-in has to be done from a computer (Settings → Devices & services → One Stop Netflix history).' }); return false; }
+      this._nfcSet({ step: 'busy', text: 'Installing the sign-in helper (first time only, a few minutes)…' });
+      await sv('/store/repositories', 'post', { repository: 'https://github.com/lilwangang/one-stop-addons' }).catch(() => {});
+      let store = await sv('/store/addons'); let ad = (store.addons || store).find(x => x.slug.endsWith('one_stop_signin'));
+      if (!ad) { await sv('/store/reload', 'post'); store = await sv('/store/addons'); ad = (store.addons || store).find(x => x.slug.endsWith('one_stop_signin')); }
+      if (!ad) throw new Error('Couldn’t find the sign-in helper in the add-on store');
+      if (!ad.installed) await sv(`/store/addons/${ad.slug}/install`, 'post');
+      const info = await sv(`/addons/${ad.slug}/info`); if (info.state !== 'started') await sv(`/addons/${ad.slug}/start`, 'post');
+      this._nfcSet({ step: 'busy', text: 'Installing Netflix history…' });
+      let list = await h.callWS({ type: 'hacs/repositories/list' }), rp = list.find(x => x.full_name === 'lilwangang/one-stop-netflix');
+      if (!rp) { await h.callWS({ type: 'hacs/repositories/add', repository: 'lilwangang/one-stop-netflix', category: 'integration' }); for (let i = 0; i < 15 && !rp; i++) { await new Promise(r => setTimeout(r, 2000)); list = await h.callWS({ type: 'hacs/repositories/list' }); rp = list.find(x => x.full_name === 'lilwangang/one-stop-netflix'); } }
+      if (!rp) throw new Error('HACS didn’t add the Netflix history integration');
+      if (!rp.installed) await h.callWS({ type: 'hacs/repository/download', repository: rp.id });
+      this._nfcSet({ step: 'busy', text: 'Restarting Home Assistant to finish (about a minute)…' });
+      await h.callService('homeassistant', 'restart', {}).catch(() => {});
+      await new Promise(r => setTimeout(r, 20000));
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try { const f = await this._hass.callApi('POST', 'config/config_entries/flow', { handler: 'one_stop_netflix', show_advanced_options: false }); this._hass.callApi('DELETE', `config/config_entries/flow/${f.flow_id}`).catch(() => {}); return true; } catch (e) {}
+      }
+      throw new Error('Home Assistant restarted but Netflix history didn’t load. Refresh the page and press Connect again.');
+    } catch (e) { this._nfcSet({ step: 'error', msg: 'Setup didn’t finish: ' + (e?.message || e?.error || JSON.stringify(e)).slice(0, 180) }); return false; }
   }
   _remember(x) {
     if (!x) return; const ct = x.content || {};
