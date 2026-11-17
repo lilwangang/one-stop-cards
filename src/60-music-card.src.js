@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -143,8 +143,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .tile .play{opacity:1;transform:none;width:30px;height:30px}
 .tile .play ha-icon{--mdc-icon-size:20px}
 .idle-hint{margin-top:10px;font-size:13.5px;color:var(--om-sub);text-align:center}
-/* 1.4: no artwork behind the words; plain frosted panel */
-.hero::after{background:rgba(10,12,16,.35)}
 /* 1.2: player about 25% larger */
 @media(min-width:900px){.wrap.wide{grid-template-columns:minmax(420px,525px) minmax(0,1fr)}}
 @media(min-width:900px){.hero{padding:22px 24px 20px}}
@@ -312,7 +310,7 @@ class OneStopMusicCard extends HTMLElement {
       this._pic = pic;
       q('.art').style.backgroundImage = pic ? `url("${pic}")` : '';
       q('.art').innerHTML = pic ? '' : icon('music-note');
-      q('.bg').style.backgroundImage = pic && this._cfg.artwork_backdrop ? `url("${pic}")` : '';   // artwork stays in its own square so the words are easy to read
+      q('.bg').style.backgroundImage = pic && this._cfg.artwork_backdrop !== false ? `url("${pic}")` : '';   // artwork stays in its own square so the words are easy to read
       q('.mart').style.backgroundImage = pic ? `url("${pic}")` : '';
       q('.mart').innerHTML = pic ? '' : icon('music-note');
     }
