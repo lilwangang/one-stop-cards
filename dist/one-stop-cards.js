@@ -2913,7 +2913,7 @@ console.info(`%c ONE STOP %c Plex card ${VERSION} `, 'background:#375374;color:#
  */
 (() => {
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -3031,6 +3031,11 @@ const Shared = {
  *  2. What the home's Apple TVs reported playing in each app (Home Assistant history). Apps that don't
  *     report titles (Netflix) only show up through source 1.
  */
+// Services whose own account history can be connected (via One Stop streaming history + Sign-in Helper)
+const ACCT = {
+  netflix: { name: 'Netflix', icon: 'mdi:netflix', step: 'email', color: '229,9,20', go: 'Send me a code', lead: 'Sign in once and Recently played shows each profile’s history from every device.' },
+  disney: { name: 'Disney+', icon: 'mdi:play-circle-outline', step: 'disney', color: '17,60,207', go: 'Continue', lead: 'Sign in once and Recently played shows what each profile is in the middle of watching, on any device.' },
+};
 const RECENT_MAX = 30, RECENT_LS = 'one-stop-streaming-recent';
 const Recent = {
   local() { try { return JSON.parse(localStorage.getItem(RECENT_LS) || '{}') || {}; } catch (e) { return {}; } },
@@ -3066,20 +3071,22 @@ const Recent = {
     }
     out.sort((a, b) => b.ts - a.ts); this._hist = out; this._histT = Date.now(); return out;
   },
-  _nf: {}, profiles: [],
-  NFP: 'one-stop-netflix-profile',
-  nfProfile() { try { return localStorage.getItem(this.NFP) || ''; } catch (e) { return ''; } },
-  setNfProfile(g) { try { localStorage.setItem(this.NFP, g); } catch (e) {} },
-  async netflix(hass) {                              // real Netflix history via the One Stop Netflix history add-on
-    if (!hass?.services?.one_stop_netflix?.get_history) return null;
-    const want = this.nfProfile(), hit = this._nf[want];
+  _acc: {}, prof: {}, act: {}, conn: {},
+  pKey(svc) { return `one-stop-${svc}-profile`; },
+  profileOf(svc) { try { return localStorage.getItem(this.pKey(svc)) || ''; } catch (e) { return ''; } },
+  setProfile(svc, g) { try { localStorage.setItem(this.pKey(svc), g); } catch (e) {} },
+  forget(svc) { for (const k of Object.keys(this._acc)) if (k.startsWith(svc + '|')) delete this._acc[k]; delete this.conn[svc]; },
+  async account(hass, svc) {                          // the service's own account history (null = not connected)
+    if (!ACCT[svc] || !hass?.services?.one_stop_netflix?.get_history) { this.conn[svc] = false; return null; }
+    const want = this.profileOf(svc), key = svc + '|' + want, hit = this._acc[key];
     if (hit && Date.now() - hit.t < 120000) return hit.v;
-    const data = { limit: 40 }; if (want) data.profile = want;
+    const data = { limit: 40, service: svc }; if (want) data.profile = want;
     const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: data, return_response: true });
     const res = r?.response || {};
-    this.profiles = res.profiles || []; this.active = res.profile || want;
-    const v = (res.items || []).map(x => ({ ...x, src: 'nf', room: '' }));
-    this._nf[want] = { t: Date.now(), v }; return v;
+    if (res.connected === false) { this.conn[svc] = false; return null; }
+    this.conn[svc] = true; this.prof[svc] = res.profiles || []; this.act[svc] = res.profile || want;
+    const v = (res.items || []).map(x => ({ ...x, src: 'acct', room: '' }));
+    this._acc[key] = { t: Date.now(), v }; return v;
   },
   _match: new Map(),
   async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
@@ -3157,13 +3164,13 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .nfp{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px}.nfp::-webkit-scrollbar{display:none}
 .nfp button{flex:none;height:40px;padding:0 14px 0 6px;border-radius:999px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16)}
 .nfp button span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.15)}
-.nfp button.on{background:rgba(229,9,20,.85);border-color:#e50914}.nfp button.on span{background:rgba(0,0,0,.25)}
-.nfc{margin:0 0 12px;padding:14px;border-radius:16px;background:rgba(229,9,20,.10);border:1px solid rgba(229,9,20,.45);display:flex;flex-direction:column;gap:10px}
-.nfc .r{display:flex;align-items:center;gap:10px}.nfc .r ha-icon{color:#e50914;--mdc-icon-size:26px;flex:none}
+.nfp button.on{background:rgba(var(--ac),.85);border-color:rgb(var(--ac))}.nfp button.on span{background:rgba(0,0,0,.25)}
+.nfc{--bc:229,9,20;margin:0 0 12px;padding:14px;border-radius:16px;background:rgba(var(--bc),.12);border:1px solid rgba(var(--bc),.5);display:flex;flex-direction:column;gap:10px}
+.nfc .r{display:flex;align-items:center;gap:10px}.nfc .r ha-icon{color:rgb(var(--bc));--mdc-icon-size:26px;flex:none}
 .nfc b{font-size:15px}.nfc p{margin:0;font-size:13px;opacity:.8;line-height:1.4}
 .nfc input{all:unset;box-sizing:border-box;width:100%;height:48px;padding:0 14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);font-size:17px;color:#fff}
 .nfc input.code{letter-spacing:6px;text-align:center;font-size:22px}
-.nfc .go{height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:16px;background:#e50914;color:#fff}
+.nfc .go{height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:16px;background:rgb(var(--bc));color:#fff}
 .nfc .lnk{font-size:13px;opacity:.75;text-align:center;padding:4px}
 .nfc .err{font-size:13px;color:#ffb4b4}.nfc .pf{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 .nfc .pf button{height:48px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:600}
@@ -3232,15 +3239,15 @@ class OneStopStreamingCard extends HTMLElement {
     const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
     const paint = list => { if (this._svc !== svc) return; this._fillRecent(list); };
     let saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
-    const nfLinked = svc === 'netflix' && !!this._hass?.services?.one_stop_netflix?.get_history;
-    if (!nfLinked) paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
-    let tv = [];
-    if (nfLinked) {                       // connected: show exactly what the chosen Netflix profile watched
-      saved = [];
-      try { tv = await Recent.netflix(this._hass) || []; } catch (e) { this._nfErr = e.message || String(e); try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e2) {} }
-    } else { try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) {} }
+    let tv = null;
+    if (ACCT[svc]) { try { tv = await Recent.account(this._hass, svc); } catch (e) { this._nfErr = e.message || String(e); } }
+    if (tv) saved = [];                   // connected: show exactly what the chosen profile watched
+    else {
+      paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
+      try { tv = (await Recent.tv(this._hass)).filter(x => x.app === S.app); } catch (e) { tv = []; }
+    }
     const seen = new Set(saved.map(x => (x.t || '').toLowerCase())), fromTv = [];
-    for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, url: x.url, progress: x.progress, src: 'tv' }); }
+    for (const x of tv) { const k = x.t.toLowerCase(); if (seen.has(k)) { const s = saved.find(y => (y.t || '').toLowerCase() === k); if (s && x.ts > s.ts) s.ts = x.ts; continue; } seen.add(k); fromTv.push({ t: x.t, ep: x.ep, ts: x.ts, room: x.room, url: x.url, progress: x.progress, img: x.image, nodate: x.nodate, src: 'tv' }); }
     let all = [...saved, ...fromTv].sort((a, b) => b.ts - a.ts).slice(0, n);
     paint(all);
     if (!pkg) return;
@@ -3254,17 +3261,18 @@ class OneStopStreamingCard extends HTMLElement {
   _fillRecent(list) {
     const s = this.shadowRoot.querySelector('[data-sec="recent"]'); if (!s) return;
     let b = s.querySelector('[data-body]');
-    if (this._svc === 'netflix') {
+    if (ACCT[this._svc]) {
       let box = s.querySelector('[data-nfc]');
-      const show = this._hass?.user?.is_admin && (!this._hass.services?.one_stop_netflix?.get_history || this._nfc);
+      if (this._nfc && this._nfc.svc !== this._svc) this._nfc = null;
+      const show = this._hass?.user?.is_admin && (Recent.conn[this._svc] !== true || this._nfc);
       if (show) { if (!box) { box = document.createElement('div'); box.dataset.nfc = ''; s.insertBefore(box, b); } this._nfcRender(box); }
       else if (box) box.remove();
     }
     if (!list.length) { this._nfChips(s); b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
     this._recent = list;
     this._nfChips(s);
-    b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p);
-      return `<button class="it" data-ri="${i}" aria-label="${esc(x.t)}"><div class="ph">${src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="">` : ''}<div class="fb ${src ? 'hide' : ''}">${esc(x.t)}</div><span class="badge">${esc(ago(x.ts))}</span></div><div class="nm">${esc(x.t)}</div><div class="sb">${esc(x.ep || x.room || (x.o === 'SHOW' ? 'Series' : x.y ? 'Movie · ' + x.y : ''))}</div></button>`; }).join('')}</div>`;
+    b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p) || x.img || '';
+      return `<button class="it" data-ri="${i}" aria-label="${esc(x.t)}"><div class="ph">${src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="">` : ''}<div class="fb ${src ? 'hide' : ''}">${esc(x.t)}</div><span class="badge">${esc(x.nodate ? 'In progress' : ago(x.ts))}</span></div><div class="nm">${esc(x.t)}</div><div class="sb">${esc(x.ep || x.room || (x.o === 'SHOW' ? 'Series' : x.y ? 'Movie · ' + x.y : ''))}</div></button>`; }).join('')}</div>`;
     s.querySelector('[data-ct]').textContent = String(list.length);
     b.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
     b.querySelectorAll('[data-ri]').forEach(el => el.addEventListener('click', () => {
@@ -3277,35 +3285,36 @@ class OneStopStreamingCard extends HTMLElement {
   }
   _nfChips(s) {                                   // "Whose history?" profile buttons (remembered on this phone/tablet)
     let bar = s.querySelector('[data-nfp]');
-    const ps = this._svc === 'netflix' ? Recent.profiles : [];
+    const svc = this._svc, ps = ACCT[svc] ? (Recent.prof[svc] || []) : [];
     if (ps.length < 2) { bar?.remove(); return; }
     if (!bar) { bar = document.createElement('div'); bar.dataset.nfp = ''; bar.className = 'nfp'; s.insertBefore(bar, s.querySelector('[data-body]')); }
-    const on = Recent.nfProfile() || Recent.active;
+    const on = Recent.profileOf(svc) || Recent.act[svc];
     bar.innerHTML = ps.map(p => `<button class="${p.guid === on ? 'on' : ''}" data-g="${esc(p.guid)}"><span>${esc((p.name || '?')[0].toUpperCase())}</span>${esc(p.name)}</button>`).join('');
     bar.querySelectorAll('[data-g]').forEach(el => el.addEventListener('click', () => {
-      if (el.dataset.g === on) return; this._buzz(); Recent.setNfProfile(el.dataset.g);
+      if (el.dataset.g === on) return; this._buzz(); Recent.setProfile(svc, el.dataset.g);
       bar.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === el));
       const body = s.querySelector('[data-body]'); if (body) body.innerHTML = '<div class="empty">Loading ' + esc(el.textContent.slice(1)) + '’s history…</div>';
-      this._loadRecent(this._pkg('netflix'));
+      this._loadRecent(this._pkg(svc));
     }));
   }
   /* ---- connect Netflix right from the card (admin only) ---- */
   _nfcRender(box) {
+    const A = ACCT[this._svc], N = esc(A.name), I = A.icon;
     const st = this._nfc || { step: 'intro' }, m = st.msg ? `<div class="err">${esc(st.msg)}</div>` : '';
     const busy = t => `<div class="r"><div class="spin"></div><p>${esc(t)}</p></div>`;
-    const head = '<div class="r"><ha-icon icon="mdi:netflix"></ha-icon><div><b>See what you really watched on Netflix</b><p>Sign in once and Recently played shows this profile’s history from every device.</p></div></div>';
+    const head = `<div class="r"><ha-icon icon="${I}"></ha-icon><div><b>See what you really watched on ${N}</b><p>${esc(A.lead)}</p></div></div>`;
     let h;
     switch (st.step) {
-      case 'intro': h = `${head}<button class="go" data-n="begin">Connect Netflix</button>`; break;
+      case 'intro': h = `${head}<button class="go" data-n="begin">Connect ${N}</button>`; break;
       case 'busy': h = busy(st.text || 'Working…'); break;
-      case 'email': h = `<div class="r"><ha-icon icon="mdi:netflix"></ha-icon><b>Netflix email or phone number</b></div><input type="email" autocomplete="username" inputmode="email" data-in placeholder="name@example.com" value="${esc(st.email || '')}">${m}<button class="go" data-n="email">Send me a code</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
-      case 'code': h = `<div class="r"><ha-icon icon="mdi:email-fast-outline"></ha-icon><div><b>Enter the code Netflix sent</b><p>Check ${esc(st.email || 'your email')}. It expires in 15 minutes.</p></div></div><input class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-in>${m}<button class="go" data-n="code">Sign in</button><button class="lnk" data-n="restart">Send a new code</button>`; break;
-      case 'password': h = `<div class="r"><ha-icon icon="mdi:lock-outline"></ha-icon><b>Netflix is asking for the password</b></div><input type="password" autocomplete="current-password" data-in>${m}<button class="go" data-n="password">Sign in</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
+      case 'email': h = `<div class="r"><ha-icon icon="${I}"></ha-icon><b>${N} email${this._svc === 'netflix' ? ' or phone number' : ''}</b></div><input type="email" autocomplete="username" inputmode="email" data-in placeholder="name@example.com" value="${esc(st.email || '')}">${m}<button class="go" data-n="email">${esc(A.go)}</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
+      case 'code': h = `<div class="r"><ha-icon icon="mdi:email-fast-outline"></ha-icon><div><b>Enter the code ${N} sent</b><p>Check ${esc(st.email || 'your email')}. It expires in 15 minutes.</p></div></div><input class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-in>${m}<button class="go" data-n="code">Sign in</button><button class="lnk" data-n="restart">Send a new code</button>`; break;
+      case 'password': h = `<div class="r"><ha-icon icon="mdi:lock-outline"></ha-icon><b>Enter your ${N} password</b></div><input type="password" autocomplete="current-password" data-in>${m}<button class="go" data-n="password">Sign in</button><button class="lnk" data-n="cancel">Cancel</button>`; break;
       case 'profile': h = `<div class="r"><ha-icon icon="mdi:account-multiple"></ha-icon><b>Whose history should show here?</b></div><div class="pf">${(st.options || []).map(o => `<button data-n="profile" data-v="${esc(o.value)}">${esc(o.label)}</button>`).join('')}</div>${m}`; break;
-      case 'done': h = `<div class="r"><ha-icon icon="mdi:check-circle" style="color:#4caf50"></ha-icon><div><b>Netflix connected</b><p>${esc(st.text || '')}</p></div></div>`; break;
+      case 'done': h = `<div class="r"><ha-icon icon="mdi:check-circle" style="color:#4caf50"></ha-icon><div><b>${N} connected</b><p>${esc(st.text || '')}</p></div></div>`; break;
       default: h = `${head}${m}<button class="go" data-n="begin">Try again</button>`;
     }
-    box.className = 'nfc'; box.innerHTML = h;
+    box.className = 'nfc'; box.style.setProperty('--bc', A.color); box.innerHTML = h;
     const inp = box.querySelector('[data-in]'); if (inp) { setTimeout(() => inp.focus(), 50); inp.addEventListener('keydown', e => { if (e.key === 'Enter') box.querySelector('.go')?.click(); }); }
     box.querySelectorAll('[data-n]').forEach(el => el.addEventListener('click', () => this._nfcAct(el.dataset.n, inp?.value?.trim(), el.dataset.v)));
   }
@@ -3315,14 +3324,14 @@ class OneStopStreamingCard extends HTMLElement {
     const flow = async (data) => this._hass.callApi('POST', `config/config_entries/flow/${(this._nfc || st).flow}`, data);
     const handle = r => {
       if (r.type === 'create_entry' || (r.type === 'abort' && ['already_configured', 'reauth_successful'].includes(r.reason))) {
-        Recent._nf = null; this._nfcSet({ step: 'done', text: 'Your Netflix history will appear here in a moment.' });
-        const wait = () => { if (this._hass.services?.one_stop_netflix?.get_history) { setTimeout(() => { this._nfc = null; this._loadRecent(this._pkg('netflix')); }, 2500); } else setTimeout(wait, 1000); }; wait(); return;
+        const svc = this._svc; Recent.forget(svc); this._nfcSet({ svc, step: 'done', text: `Your ${ACCT[svc].name} history will appear here in a moment.` });
+        const wait = () => { if (this._hass.services?.one_stop_netflix?.get_history) { setTimeout(() => { this._nfc = null; Recent.forget(svc); this._loadRecent(this._pkg(svc)); }, 2500); } else setTimeout(wait, 1000); }; wait(); return;
       }
-      if (r.type === 'abort') return this._nfcSet({ step: 'error', msg: ({ signed_out: 'Netflix signed in but then refused the history request. Try again.', cannot_read: 'Signed in, but Netflix answered in a way this card doesn’t understand yet.' })[r.reason] || 'Netflix stopped the sign-in (' + r.reason + ').' });
+      if (r.type === 'abort') return this._nfcSet({ svc: this._svc, step: 'error', msg: ({ signed_out: 'Signed in, but the history request was refused. Try again.', cannot_read: 'Signed in, but the service answered in a way this card doesn’t understand yet.' })[r.reason] || 'The sign-in stopped (' + r.reason + ').' });
       const msg = r.errors?.base ? (r.description_placeholders?.message || ({ wrong_code: 'That code didn’t work. Check it, or send a new one.', wrong_password: 'That password didn’t work.' })[r.errors.base] || r.errors.base) : '';
       const cur = this._nfc || st;
       if (r.step_id === 'profile') { const opts = r.data_schema?.[0]?.selector?.select?.options || []; return this._nfcSet({ ...cur, flow: r.flow_id, step: 'profile', options: opts, msg }); }
-      if (['email', 'code', 'password'].includes(r.step_id)) return this._nfcSet({ ...cur, flow: r.flow_id, step: r.step_id, msg });
+      if (['email', 'disney', 'code', 'password'].includes(r.step_id)) return this._nfcSet({ ...cur, svc: this._svc, flow: r.flow_id, step: r.step_id === 'disney' ? 'email' : r.step_id, msg });
       if (r.step_id === 'cookies') return this._nfcSet({ step: 'error', msg: 'The sign-in helper isn’t running in Home Assistant. Start “One Stop Sign-in Helper” in Settings → Add-ons, then try again.' });
       this._nfcSet({ step: 'error', msg: 'Unexpected step: ' + (r.step_id || r.type) });
     };
@@ -3330,26 +3339,28 @@ class OneStopStreamingCard extends HTMLElement {
       if (a === 'cancel') { if (st.flow) h.callApi('DELETE', `config/config_entries/flow/${st.flow}`).catch(() => {}); return this._nfcSet(null); }
       if (a === 'begin' || a === 'restart') {
         if (st.flow) h.callApi('DELETE', `config/config_entries/flow/${st.flow}`).catch(() => {});
-        this._nfcSet({ step: 'busy', text: 'Opening Netflix sign-in…' });
+        const A = ACCT[this._svc];
+        this._nfcSet({ svc: this._svc, step: 'busy', text: `Opening ${A.name} sign-in…` });
         const open = () => this._hass.callApi('POST', 'config/config_entries/flow', { handler: 'one_stop_netflix', show_advanced_options: false });
         let r;
         try { r = await open(); }
         catch (e) {                                   // integration not installed on this home yet
           if (!/handler|not found|invalid/i.test(e?.body?.message || e?.message || '')) throw e;
           if (!(await this._nfcInstall())) return;
-          this._nfcSet({ step: 'busy', text: 'Opening Netflix sign-in…' }); r = await open();
+          this._nfcSet({ svc: this._svc, step: 'busy', text: `Opening ${A.name} sign-in…` }); r = await open();
         }
-        if (r.type === 'menu') r = await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { next_step_id: 'email' });
-        this._nfc = { flow: r.flow_id, email: st.email };
-        if (a === 'restart' && st.email) { this._nfcSet({ ...this._nfc, step: 'busy', text: 'Asking Netflix for a new code…' }); return handle(await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { email: st.email })); }
+        if (r.type === 'menu') r = await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { next_step_id: A.step });
+        this._nfc = { svc: this._svc, flow: r.flow_id, email: st.email };
+        if (a === 'restart' && st.email) { this._nfcSet({ ...this._nfc, step: 'busy', text: `Asking ${A.name} for a new code…` }); return handle(await this._hass.callApi('POST', `config/config_entries/flow/${r.flow_id}`, { email: st.email })); }
         return handle(r);
       }
       if (!val && a !== 'profile') return this._nfcSet({ ...st, msg: 'Fill this in first.' });
-      if (a === 'email') { this._nfcSet({ ...st, email: val, step: 'busy', text: 'Asking Netflix to send a code…' }); return handle(await flow({ email: val })); }
-      if (a === 'code') { this._nfcSet({ ...st, step: 'busy', text: 'Signing in to Netflix…' }); return handle(await flow({ code: val })); }
-      if (a === 'password') { this._nfcSet({ ...st, step: 'busy', text: 'Signing in to Netflix…' }); return handle(await flow({ password: val })); }
+      const nm = ACCT[this._svc].name;
+      if (a === 'email') { this._nfcSet({ ...st, email: val, step: 'busy', text: `Contacting ${nm}…` }); return handle(await flow({ email: val })); }
+      if (a === 'code') { this._nfcSet({ ...st, step: 'busy', text: `Signing in to ${nm}…` }); return handle(await flow({ code: val })); }
+      if (a === 'password') { this._nfcSet({ ...st, step: 'busy', text: `Signing in to ${nm}…` }); return handle(await flow({ password: val })); }
       if (a === 'profile') { this._nfcSet({ ...st, step: 'busy', text: 'Opening that profile…' }); return handle(await flow({ profile: v })); }
-    } catch (e) { this._nfcSet({ step: 'error', msg: (e?.body?.message || e?.message || String(e)).slice(0, 200) }); }
+    } catch (e) { this._nfcSet({ svc: this._svc, step: 'error', msg: (e?.body?.message || e?.message || String(e)).slice(0, 200) }); }
   }
   async _nfcInstall() {                         // first time on a home: install the helper add-on + integration, then restart
     const h = this._hass, sv = (endpoint, method = 'get', data) => h.callWS({ type: 'supervisor/api', endpoint, method, data, timeout: null });
