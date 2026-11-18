@@ -5,7 +5,7 @@
  */
 (() => {
 const init = E => {
-const VERSION = '1.3.2'
+const VERSION = '1.4.0'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -193,7 +193,7 @@ class OneStopRemoteCard extends E.Card {
       this.shadowRoot.appendChild(d);
     }
     d.querySelector('.head span').textContent = p.title || p.label || 'More';
-    d.style.width = p.width ? `min(${p.width},100vw)` : '';
+    d.style.removeProperty('width'); if (p.width) d.style.setProperty('--pw', String(p.width)); else d.style.removeProperty('--pw');
     if (p.card && typeof p.card === 'object') {                     // any dashboard card, e.g. the Music card
       const token = this._popToken = {};
       d.querySelector('.body').replaceChildren();
@@ -229,13 +229,18 @@ class OneStopRemoteCard extends E.Card {
   }
 }
 const POPUP_CSS = `
-dialog.os-pop{border:none;padding:0 0 max(14px,env(safe-area-inset-bottom));margin:auto auto 0;width:min(560px,100vw);max-width:100vw;max-height:88vh;overflow:auto;box-sizing:border-box;
+dialog.os-pop{border:none;padding:0 0 max(14px,env(safe-area-inset-bottom));margin:auto auto 0;box-sizing:border-box;overflow:auto;overscroll-behavior:contain;
+  width:min(var(--pw,560px),100vw);max-width:100vw;max-height:88vh;max-height:88dvh;
   border-radius:26px 26px 0 0;color:var(--primary-text-color);
   background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),var(--ha-card-background,var(--card-background-color,#1f2228));
   backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2);
   border-top:1px solid color-mix(in srgb,var(--primary-text-color) 16%,transparent);box-shadow:0 -12px 40px rgba(0,0,0,.45);animation:ospop .22s cubic-bezier(.2,.8,.2,1)}
 dialog.os-pop::backdrop{background:rgba(0,0,0,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-@media (min-width:700px){dialog.os-pop{margin:auto;border-radius:26px;border:1px solid color-mix(in srgb,var(--primary-text-color) 16%,transparent);padding-bottom:14px}}
+/* wide screens (laptop / tablet landscape, at any app zoom): a centred window that always fits inside the visible area */
+@media (min-width:700px){dialog.os-pop{margin:auto;width:min(var(--pw,560px),calc(100vw - 48px));max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);
+  border-radius:26px;border:1px solid color-mix(in srgb,var(--primary-text-color) 16%,transparent);padding-bottom:14px}}
+/* short windows (big zoom on a laptop, phone sideways): use the full height so nothing gets squashed */
+@media (max-height:520px){dialog.os-pop{margin:auto;max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px);border-radius:18px}.grab{display:none}.head{padding-top:8px}}
 @keyframes ospop{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .grab{width:42px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--primary-text-color) 30%,transparent);margin:10px auto 0}
 @media (min-width:700px){.grab{display:none}}
