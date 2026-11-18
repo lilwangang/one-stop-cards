@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -488,10 +488,16 @@ class OneStopStreamingCard extends HTMLElement {
       if (!ad.installed) await sv(`/store/addons/${ad.slug}/install`, 'post');
       const info = await sv(`/addons/${ad.slug}/info`); if (info.state !== 'started') await sv(`/addons/${ad.slug}/start`, 'post');
       this._nfcSet({ step: 'busy', text: 'Installing Netflix history…' });
-      let list = await h.callWS({ type: 'hacs/repositories/list' }), rp = list.find(x => x.full_name === 'lilwangang/one-stop-netflix');
-      if (!rp) { await h.callWS({ type: 'hacs/repositories/add', repository: 'lilwangang/one-stop-netflix', category: 'integration' }); for (let i = 0; i < 15 && !rp; i++) { await new Promise(r => setTimeout(r, 2000)); list = await h.callWS({ type: 'hacs/repositories/list' }); rp = list.find(x => x.full_name === 'lilwangang/one-stop-netflix'); } }
-      if (!rp) throw new Error('HACS didn’t add the Netflix history integration');
-      if (!rp.installed) await h.callWS({ type: 'hacs/repository/download', repository: rp.id });
+      // HACS, or Home Assistant's built-in Marketplace (HACS's successor)
+      let P = 'hacs', list;
+      try { list = await h.callWS({ type: 'hacs/repositories/list' }); } catch (e) { P = 'marketplace'; list = await h.callWS({ type: 'marketplace/repositories/list' }); }
+      const REPO = 'lilwangang/one-stop-netflix'; let rp = list.find(x => x.full_name === REPO);
+      if (!rp) { await h.callWS({ type: P + '/repositories/add', repository: REPO, category: 'integration' }); for (let i = 0; i < 15 && !rp; i++) { await new Promise(r => setTimeout(r, 2000)); list = await h.callWS({ type: P + '/repositories/list' }); rp = list.find(x => x.full_name === REPO); } }
+      if (!rp) throw new Error('Couldn’t add the streaming history integration');
+      if (!rp.installed) {
+        try { await h.callWS(P === 'hacs' ? { type: 'hacs/repository/download', repository: rp.id } : { type: 'marketplace/repository/install', repository: rp.id }); }
+        catch (e) { if (/warning/i.test(e?.code || e?.message || '')) throw new Error('Open Settings → Marketplace once and accept its warning, then press Connect again'); throw e; }
+      }
       this._nfcSet({ step: 'busy', text: 'Restarting Home Assistant to finish (about a minute)…' });
       await h.callService('homeassistant', 'restart', {}).catch(() => {});
       await new Promise(r => setTimeout(r, 20000));
