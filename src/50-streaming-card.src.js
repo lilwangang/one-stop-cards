@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.8.1';
+const VERSION = '1.10.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -29,7 +29,7 @@ const DEFAULTS = {
   services: ['netflix', 'disney', 'prime', 'crave', 'appletv', 'paramount', 'hayu', 'youtube', 'cbc', 'telus'], default_service: 'netflix',
   show_tabs: true, show_search: true, show_recent: true, show_trending: true, show_shows: true, show_movies: true, show_new: true, row_count: 20,
   poster_size: 'medium', poster_shape: 'rounded', show_titles: true, use_brand_colour: true, confirm_open: true,
-  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true,
+  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true, auto_play: true, netflix_row: 'continue',
 };
 const ROOM_KEYS = ['type', 'room_name', 'apple_tv', 'remote', 'country', 'services', 'netflix_plan', 'paramount_plan', 'default_service'];
 
@@ -168,11 +168,11 @@ const Recent = {
   profileOf(svc) { try { return localStorage.getItem(this.pKey(svc)) || ''; } catch (e) { return ''; } },
   setProfile(svc, g) { try { localStorage.setItem(this.pKey(svc), g); } catch (e) {} },
   forget(svc) { for (const k of Object.keys(this._acc)) if (k.startsWith(svc + '|')) delete this._acc[k]; delete this.conn[svc]; },
-  async account(hass, svc) {                          // the service's own account history (null = not connected)
+  async account(hass, svc, kind = 'history') {                          // the service's own account history (null = not connected)
     if (!ACCT[svc] || !hass?.services?.one_stop_netflix?.get_history) { this.conn[svc] = false; return null; }
-    const want = this.profileOf(svc), key = svc + '|' + want, hit = this._acc[key];
+    const want = this.profileOf(svc), key = svc + '|' + want + '|' + kind, hit = this._acc[key];
     if (hit && Date.now() - hit.t < 120000) return hit.v;
-    const data = { limit: 40, service: svc }; if (want) data.profile = want;
+    const data = { limit: 40, service: svc, kind }; if (want) data.profile = want;
     const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: data, return_response: true });
     const res = r?.response || {};
     if (res.connected === false) { this.conn[svc] = false; return null; }
@@ -349,12 +349,14 @@ class OneStopStreamingCard extends HTMLElement {
     if (c.show_shows) fill('shows', JWQ.list(cc, pkg, { type: 'SHOW', first: n }));
     if (c.show_movies) fill('movies', JWQ.list(cc, pkg, { type: 'MOVIE', first: n }));
   }
+  _recentTitle(t) { const h = this.shadowRoot?.querySelector('[data-sec="recent"] h2'); if (h && h.textContent !== t) h.textContent = t; }
   async _loadRecent(pkg) {
     const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
     const paint = list => { if (this._svc !== svc) return; this._fillRecent(list); };
     let saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
     let tv = null;
-    if (ACCT[svc]) { try { tv = await Recent.account(this._hass, svc); } catch (e) { this._nfErr = e.message || String(e); } }
+    const kind = svc === 'netflix' && this._cfg.netflix_row !== 'history' ? 'continue' : 'history';
+    if (ACCT[svc]) { try { tv = await Recent.account(this._hass, svc, kind); if (tv && kind === 'continue') this._recentTitle('Continue watching'); } catch (e) { this._nfErr = e.message || String(e); } }
     if (tv) saved = [];                   // connected: show exactly what the chosen profile watched
     else {
       paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
@@ -556,6 +558,16 @@ class OneStopStreamingCard extends HTMLElement {
     const c = this._cfg, h = this._hass, st = h.states[c.apple_tv]?.state;
     if (['off', 'standby', 'unavailable', 'unknown'].includes(st)) { await h.callService('media_player', 'turn_on', { entity_id: c.apple_tv }).catch(() => {}); await new Promise(r => setTimeout(r, 4000)); }
   }
+  async _autoStart() {                              // most apps open the title's page; press Select so it starts playing
+    const c = this._cfg; if (c.auto_play === false || !c.remote) return;
+    for (const wait of [5000, 4000]) {
+      await new Promise(r => setTimeout(r, wait));
+      if (this._hass.states[c.apple_tv]?.state === 'playing') return;
+      await this._hass.callService('remote', 'send_command', { entity_id: c.remote, command: 'select' }).catch(() => {});
+      await new Promise(r => setTimeout(r, 2500));
+      if (this._hass.states[c.apple_tv]?.state === 'playing') return;
+    }
+  }
   async _openApp() {
     const c = this._cfg, S = SERVICES[this._svc]; this._buzz();
     try { await this._wake(); await this._hass.callService('media_player', 'select_source', { entity_id: c.apple_tv, source: S.app }); this._toast(`Opening ${S.name} on ${c.room_name || 'the TV'}…`); }
@@ -565,7 +577,7 @@ class OneStopStreamingCard extends HTMLElement {
     const c = this._cfg, S = SERVICES[this._svc]; this._buzz();
     if (!url) return this._openApp();
     const open = () => this._hass.callService('media_player', 'play_media', { entity_id: c.apple_tv, media_content_type: 'url', media_content_id: url });
-    try { await this._wake(); try { await open(); } catch (e) { await new Promise(r => setTimeout(r, 2500)); await open(); } this._toast(`Opening ${title} in ${S.name}…`); }
+    try { await this._wake(); try { await open(); } catch (e) { await new Promise(r => setTimeout(r, 2500)); await open(); } this._toast(`Opening ${title} in ${S.name}…`); this._autoStart(); }
     catch (e) { this._toast('That title couldn’t open directly, opening the app instead.'); this._openApp(); }
   }
 }
@@ -602,7 +614,7 @@ const schema = d => {
     section('g_posters', 'Posters and opening', 'mdi:image-multiple-outline', [grid([
       { name: 'poster_size', selector: size4 },
       { name: 'poster_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
-      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle },
+      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle }, { name: 'auto_play', selector: toggle }, { name: 'netflix_row', selector: { select: { mode: 'dropdown', options: [{ value: 'continue', label: 'Continue watching' }, { value: 'history', label: 'Everything watched' }] } } },
     ])]),
     section('g_look', 'Look', 'mdi:palette-outline', [grid([
       { name: 'use_brand_colour', selector: toggle },
@@ -620,7 +632,7 @@ const LABELS = {
   room_name: 'Room name (shown on the card)', apple_tv: 'Apple TV', remote: 'Apple TV remote',
   country: 'Country (each country has a different catalogue)', services: 'Services this home subscribes to', netflix_plan: 'Netflix plan', paramount_plan: 'Paramount+ plan', default_service: 'Service shown first',
   show_tabs: 'Service buttons at the top', show_search: 'Search box', show_recent: 'Recently played', show_trending: 'Trending', show_new: 'New this week', show_shows: 'Popular shows', show_movies: 'Popular movies', row_count: 'Titles in each row',
-  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening',
+  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening', auto_play: 'Start playing automatically (presses Select for you)', netflix_row: 'Netflix row shows',
   use_brand_colour: 'Tint the card in the service’s colour', off_background: 'Background', off_custom_color: 'Your background colour', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style', title_size: 'Title size', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
