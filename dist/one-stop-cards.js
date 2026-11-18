@@ -2913,7 +2913,7 @@ console.info(`%c ONE STOP %c Plex card ${VERSION} `, 'background:#375374;color:#
  */
 (() => {
 'use strict';
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -3161,6 +3161,8 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:11;padding:12px 18px;border-radius:14px;background:rgba(20,22,28,.95);border:1px solid rgba(var(--ac),.6);font-weight:600;font-size:15px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center}
 .sz-small{--pw:104px}.sz-medium{--pw:128px}.sz-large{--pw:156px}.sz-extra_large{--pw:188px}
 @container oss (max-width:420px){.sz-medium{--pw:112px}.sz-large{--pw:136px}}
+.np{display:flex;align-items:center;gap:12px;margin:-4px 0 14px;padding:12px 14px;border-radius:16px;background:rgba(229,9,20,.14);border:1px solid rgba(229,9,20,.4)}.np b{display:block;font-size:17px;line-height:1.25}.np small{display:block;font-size:12.5px;opacity:.75}
+.np .dot{width:10px;height:10px;border-radius:50%;background:#e50914;flex:none;box-shadow:0 0 0 0 rgba(229,9,20,.6);animation:npd 1.6s infinite}@keyframes npd{70%{box-shadow:0 0 0 8px rgba(229,9,20,0)}100%{box-shadow:0 0 0 0 rgba(229,9,20,0)}}
 .nfp{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px}.nfp::-webkit-scrollbar{display:none}
 .nfp button{flex:none;height:40px;padding:0 14px 0 6px;border-radius:999px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16)}
 .nfp button span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.15)}
@@ -3178,6 +3180,16 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
 
+const nowPlayingFor = (hass, ids) => {        // One Stop 'now playing' sensors (Netflix etc. on an Apple TV in the same device/room)
+  if (!hass) return null;
+  const dev = id => hass.entities?.[id]?.device_id;
+  const want = new Set(ids.filter(Boolean)), devs = new Set([...want].map(dev).filter(Boolean));
+  for (const st of Object.values(hass.states)) {
+    const a = st.attributes; if (!a?.one_stop_now_playing || !st.state || ['unknown', 'unavailable', ''].includes(st.state)) continue;
+    if (want.has(a.media_player) || devs.has(dev(a.media_player))) return { title: st.state, ep: a.episode, profile: a.profile, service: a.service, sure: a.confidence === 'confirmed' };
+  }
+  return null;
+};
 /* ---------------- the card ---------------- */
 class OneStopStreamingCard extends HTMLElement {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
@@ -3190,7 +3202,16 @@ class OneStopStreamingCard extends HTMLElement {
     window.addEventListener('location-changed', this._onLoc); window.addEventListener('popstate', this._onLoc);
   }
   disconnectedCallback() { Shared.listeners.delete(this._onShared); window.removeEventListener('location-changed', this._onLoc); window.removeEventListener('popstate', this._onLoc); }
-  set hass(hass) { const first = !this._hass; this._hass = hass; JWQ.hass = hass; if (first) Shared.get(hass); if (!this._built) this._build(); }
+  set hass(hass) { const first = !this._hass; this._hass = hass; JWQ.hass = hass; if (first) Shared.get(hass); if (!this._built) this._build(); else this._np(); }
+  _np() {                                          // 'Now playing on <room>' for apps that don't tell the TV (Netflix)
+    const card = this.shadowRoot?.querySelector('ha-card'), hero = card?.querySelector('.hero'); if (!hero) return;
+    const np = nowPlayingFor(this._hass, [this._cfg.apple_tv, this._cfg.remote]);
+    let el = card.querySelector('.np');
+    if (!np) { el?.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.className = 'np'; hero.after(el); }
+    const key = JSON.stringify(np); if (el.dataset.k === key) return; el.dataset.k = key;
+    el.innerHTML = `<span class="dot"></span><div><small>Now playing on ${esc(this._cfg.room_name || 'the TV')}${np.service === 'netflix' ? ' · Netflix' : ''}</small><b>${esc(np.title)}</b>${np.ep || np.profile ? `<small>${esc([np.ep, np.profile ? (np.sure ? '' : 'probably ') + np.profile + '’s profile' : ''].filter(Boolean).join(' · '))}</small>` : ''}</div>`;
+  }
   getCardSize() { return 12; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
   _urlService() { const s = new URLSearchParams(location.search).get('service'); return s && SERVICES[s] ? s : null; }
@@ -3221,6 +3242,7 @@ class OneStopStreamingCard extends HTMLElement {
     R.innerHTML = `<style>${CSS}</style><ha-card class="sz-${esc(c.poster_size)} ${c.show_titles ? '' : 'notitles'} ${c.use_brand_colour ? 'brand' : ''}" style="${vars}">${tabs}
       <div class="hero"><h1>${esc(S.name)}<span class="sub">${esc([room, planWord].filter(Boolean).join(' · '))}</span></h1>${pkg ? `<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open app</button>` : ''}</div>${body}</ha-card>`;
     this._built = true;
+    this._np();
     R.querySelectorAll('[data-svc]').forEach(b => b.addEventListener('click', () => { this._buzz(); this._svc = b.dataset.svc; this._q = ''; this._build(); }));
     R.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => this._openApp()));
     const q = R.querySelector('[data-q]'); if (q) q.addEventListener('input', () => { clearTimeout(this._qt); this._qt = setTimeout(() => { this._q = q.value.trim(); this._search(); }, 350); });
@@ -4093,7 +4115,7 @@ ${" ".repeat(o.indent*a)}`}function tW(o,a,r,c){let s="";for(let l=0,u=r.items.l
  */
 (() => {
 const init = E => {
-const VERSION = '1.2.0'
+const VERSION = '1.3.0'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -4214,6 +4236,17 @@ const TEMPLATES = {
   blank: { name: 'Empty - I’ll build my own', icon: 'mdi:plus-box-outline', rows: [[]] },
 };
 
+const nowPlayingFor = (hass, ids) => {        // One Stop 'now playing' sensors (Netflix etc. on an Apple TV in the same device/room)
+  if (!hass) return null;
+  const dev = id => hass.entities?.[id]?.device_id;
+  const want = new Set(ids.filter(Boolean)), devs = new Set([...want].map(dev).filter(Boolean));
+  for (const st of Object.values(hass.states)) {
+    const a = st.attributes; if (!a?.one_stop_now_playing || !st.state || ['unknown', 'unavailable', ''].includes(st.state)) continue;
+    if (want.has(a.media_player) || devs.has(dev(a.media_player))) return { title: st.state, ep: a.episode, profile: a.profile, service: a.service, sure: a.confidence === 'confirmed' };
+  }
+  return null;
+};
+const NP_CSS = '.os-np{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:10px 12px;border-radius:14px;background:rgba(229,9,20,.14);border:1px solid rgba(229,9,20,.4);font-size:14px;line-height:1.3}.os-np ha-icon{color:#e50914;--mdc-icon-size:22px;flex:none}.os-np b{display:block;font-size:15px}.os-np small{opacity:.75}';
 class OneStopRemoteCard extends E.Card {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig() { return { type: 'custom:' + TAG, rows: clone(TEMPLATES.arrows.rows) }; }
@@ -4225,6 +4258,20 @@ class OneStopRemoteCard extends E.Card {
     if (this.hass) this.hass = { ...this.hass };
   }
   getGridOptions() { return { columns: 12, min_columns: 12 }; }
+  updated(changed) {
+    if (super.updated) super.updated(changed);
+    if (!this._noNp) this._nowPlaying();
+  }
+  _nowPlaying() {                                 // 'Now playing' strip for apps that don't report titles (Netflix)
+    const card = this.shadowRoot?.querySelector('ha-card'); if (!card) return;
+    const r = this._raw || {}, np = nowPlayingFor(this.hass, [r.media_player_id, r.remote_id]);
+    let el = card.querySelector(':scope > .os-np');
+    if (!np) { el?.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.className = 'os-np'; card.prepend(el); if (!this.shadowRoot.querySelector('style[data-np]')) { const st = document.createElement('style'); st.dataset.np = ''; st.textContent = NP_CSS; this.shadowRoot.appendChild(st); } }
+    const key = JSON.stringify(np); if (el.dataset.k === key) return; el.dataset.k = key;
+    const esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    el.innerHTML = `<ha-icon icon="mdi:netflix"></ha-icon><div><b>${esc2(np.title)}</b><small>${esc2([np.ep, np.profile ? (np.sure ? '' : 'probably ') + np.profile + '’s profile' : ''].filter(Boolean).join(' · '))}</small></div>`;
+  }
   connectedCallback() {
     super.connectedCallback();
     if (!this._popListen) {
@@ -4274,6 +4321,7 @@ class OneStopRemoteCard extends E.Card {
     }
     this._popToken = null;
     const inner = document.createElement(TAG);
+    inner._noNp = true;
     const cfg = { ...raw, rows: Array.isArray(p.rows) ? p.rows : [], title: undefined,
       styles: [raw.styles, 'ha-card{background:none;--ha-card-background:transparent;border:none;border-top:none;border-radius:0;box-shadow:none;padding:4px 2px 2px;backdrop-filter:none;-webkit-backdrop-filter:none;}'].filter(Boolean).join('\n') };
     delete cfg.grid_options; delete cfg.title;

@@ -5,7 +5,7 @@
  */
 (() => {
 const init = E => {
-const VERSION = '1.2.0'
+const VERSION = '1.3.0'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -126,6 +126,17 @@ const TEMPLATES = {
   blank: { name: 'Empty - I’ll build my own', icon: 'mdi:plus-box-outline', rows: [[]] },
 };
 
+const nowPlayingFor = (hass, ids) => {        // One Stop 'now playing' sensors (Netflix etc. on an Apple TV in the same device/room)
+  if (!hass) return null;
+  const dev = id => hass.entities?.[id]?.device_id;
+  const want = new Set(ids.filter(Boolean)), devs = new Set([...want].map(dev).filter(Boolean));
+  for (const st of Object.values(hass.states)) {
+    const a = st.attributes; if (!a?.one_stop_now_playing || !st.state || ['unknown', 'unavailable', ''].includes(st.state)) continue;
+    if (want.has(a.media_player) || devs.has(dev(a.media_player))) return { title: st.state, ep: a.episode, profile: a.profile, service: a.service, sure: a.confidence === 'confirmed' };
+  }
+  return null;
+};
+const NP_CSS = '.os-np{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:10px 12px;border-radius:14px;background:rgba(229,9,20,.14);border:1px solid rgba(229,9,20,.4);font-size:14px;line-height:1.3}.os-np ha-icon{color:#e50914;--mdc-icon-size:22px;flex:none}.os-np b{display:block;font-size:15px}.os-np small{opacity:.75}';
 class OneStopRemoteCard extends E.Card {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig() { return { type: 'custom:' + TAG, rows: clone(TEMPLATES.arrows.rows) }; }
@@ -137,6 +148,20 @@ class OneStopRemoteCard extends E.Card {
     if (this.hass) this.hass = { ...this.hass };
   }
   getGridOptions() { return { columns: 12, min_columns: 12 }; }
+  updated(changed) {
+    if (super.updated) super.updated(changed);
+    if (!this._noNp) this._nowPlaying();
+  }
+  _nowPlaying() {                                 // 'Now playing' strip for apps that don't report titles (Netflix)
+    const card = this.shadowRoot?.querySelector('ha-card'); if (!card) return;
+    const r = this._raw || {}, np = nowPlayingFor(this.hass, [r.media_player_id, r.remote_id]);
+    let el = card.querySelector(':scope > .os-np');
+    if (!np) { el?.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.className = 'os-np'; card.prepend(el); if (!this.shadowRoot.querySelector('style[data-np]')) { const st = document.createElement('style'); st.dataset.np = ''; st.textContent = NP_CSS; this.shadowRoot.appendChild(st); } }
+    const key = JSON.stringify(np); if (el.dataset.k === key) return; el.dataset.k = key;
+    const esc2 = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    el.innerHTML = `<ha-icon icon="mdi:netflix"></ha-icon><div><b>${esc2(np.title)}</b><small>${esc2([np.ep, np.profile ? (np.sure ? '' : 'probably ') + np.profile + '’s profile' : ''].filter(Boolean).join(' · '))}</small></div>`;
+  }
   connectedCallback() {
     super.connectedCallback();
     if (!this._popListen) {
@@ -186,6 +211,7 @@ class OneStopRemoteCard extends E.Card {
     }
     this._popToken = null;
     const inner = document.createElement(TAG);
+    inner._noNp = true;
     const cfg = { ...raw, rows: Array.isArray(p.rows) ? p.rows : [], title: undefined,
       styles: [raw.styles, 'ha-card{background:none;--ha-card-background:transparent;border:none;border-top:none;border-radius:0;box-shadow:none;padding:4px 2px 2px;backdrop-filter:none;-webkit-backdrop-filter:none;}'].filter(Boolean).join('\n') };
     delete cfg.grid_options; delete cfg.title;
