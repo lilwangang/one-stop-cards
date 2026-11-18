@@ -4404,7 +4404,7 @@ ${" ".repeat(o.indent*a)}`}function tW(o,a,r,c){let s="";for(let l=0,u=r.items.l
  */
 (() => {
 const init = E => {
-const VERSION = '1.3.0'
+const VERSION = '1.3.1'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -4564,7 +4564,7 @@ class OneStopRemoteCard extends E.Card {
   connectedCallback() {
     super.connectedCallback();
     if (!this._popListen) {
-      this._popListen = e => { const name = e.detail?.popup; if (name == null) return; e.stopPropagation(); this._openPopup(String(name)); };
+      this._popListen = e => { const name = e.detail?.popup; if (name == null || !popupList(this._raw).some(p => p.name === String(name))) return; e.stopPropagation(); this._openPopup(String(name)); };   // unknown names bubble up (e.g. a button inside a pop-up opening another pop-up)
       this.addEventListener(POPUP_EVENT, this._popListen);
     }
     if (!this._navListen) { this._navListen = () => this._closePopup(); window.addEventListener('location-changed', this._navListen); }
