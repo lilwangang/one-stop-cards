@@ -2359,7 +2359,7 @@ console.info(`%c ONE STOP %c Thermostat card ${VERSION} `, 'background:#375374;c
  */
 (() => {
 'use strict';
-const VERSION = '1.0.2';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-plex-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'plex', STYLE_DASH = 'one-stop-cards';
@@ -2392,12 +2392,19 @@ const thumb = (url, w = 300, h = 450) => {
 const fmtTime = s => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 
 /* ---------------- Plex data (via Home Assistant's media browser) ---------------- */
+const DIRECT = '__one_stop_plex__';
 const Plex = {
   cache: new Map(),
   async browse(hass, entity, id, type, ttl = 60000) {
     const k = id + '|' + type, hit = this.cache.get(k);
     if (hit && Date.now() - hit.t < ttl) return hit.v;
-    const v = await hass.callWS({ type: 'media_player/browse_media', entity_id: entity, ...(id ? { media_content_id: id, media_content_type: type } : {}) });
+    const q = id ? { media_content_id: id, media_content_type: type } : {};
+    let v;
+    // Plex player entities only exist while a Plex app is open, so read the server directly when we can
+    if (entity === DIRECT || !live(hass.states[entity])) {
+      try { v = await hass.callWS({ type: 'one_stop/plex_browse', ...q }); } catch (e) { if (entity === DIRECT) throw e; }
+    }
+    if (!v) v = await hass.callWS({ type: 'media_player/browse_media', entity_id: entity, ...q });
     this.cache.set(k, { t: Date.now(), v }); return v;
   },
 };
@@ -2544,9 +2551,9 @@ class OneStopPlexCard extends HTMLElement {
 
   _browseEntity() {
     const c = this._cfg, s = this._hass.states;
-    if (c.browse_entity && s[c.browse_entity]) return c.browse_entity;
-    if (c.plex_client && s[c.plex_client]) return c.plex_client;
-    return Object.keys(s).find(e => e.startsWith('media_player.') && this._hass.entities?.[e]?.platform === 'plex');
+    if (c.browse_entity && live(s[c.browse_entity])) return c.browse_entity;
+    if (c.plex_client && live(s[c.plex_client])) return c.plex_client;
+    return Object.keys(s).find(e => e.startsWith('media_player.') && this._hass.entities?.[e]?.platform === 'plex' && live(s[e])) || DIRECT;
   }
   _buzz() { if (this._cfg.haptics) { try { navigator.vibrate?.(12); } catch (e) {} } }
   _toast(msg) {
