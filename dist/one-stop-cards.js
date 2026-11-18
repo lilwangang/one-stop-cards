@@ -2359,7 +2359,7 @@ console.info(`%c ONE STOP %c Thermostat card ${VERSION} `, 'background:#375374;c
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const TAG = 'one-stop-plex-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'plex', STYLE_DASH = 'one-stop-cards';
@@ -2401,10 +2401,11 @@ const Plex = {
     const q = id ? { media_content_id: id, media_content_type: type } : {};
     let v;
     // Plex player entities only exist while a Plex app is open, so read the server directly when we can
+    const ws = msg => Promise.race([hass.callWS(msg), new Promise((_, no) => setTimeout(() => no(new Error('Plex took too long to answer')), 25000))]);
     if (entity === DIRECT || !live(hass.states[entity])) {
-      try { v = await hass.callWS({ type: 'one_stop/plex_browse', ...q }); } catch (e) { if (entity === DIRECT) throw e; }
+      try { v = await ws({ type: 'one_stop/plex_browse', ...q }); } catch (e) { if (entity === DIRECT) throw e; }
     }
-    if (!v) v = await hass.callWS({ type: 'media_player/browse_media', entity_id: entity, ...q });
+    if (!v) v = await ws({ type: 'media_player/browse_media', entity_id: entity, ...q });
     this.cache.set(k, { t: Date.now(), v }); return v;
   },
 };
@@ -2602,7 +2603,11 @@ class OneStopPlexCard extends HTMLElement {
       if (c.show_recent_movies) hub('home.movies.recent').then(list => this._fillRow('movies', list.slice(0, n)));
       if (c.show_recent_tv) hub('home.television.recent').then(list => this._fillRow('tv', list.slice(0, n)));
       if (c.show_library) this._renderTabs();
-    } catch (e) { this.shadowRoot.querySelectorAll('[data-body]').forEach(b => b.innerHTML = `<div class="empty">Couldn’t reach Plex (${esc(e.message || e)}).</div>`); }
+    } catch (e) {
+      this._tries = (this._tries || 0) + 1;
+      if (this._tries <= 4) { setTimeout(() => this._loadRows(), 3000 * this._tries); return; }   // Plex is often slow right after a restart
+      this.shadowRoot.querySelectorAll('[data-body],[data-lib]').forEach(b => b.innerHTML = `<div class="empty">Couldn’t reach Plex (${esc(e.message || e)}).</div>`);
+    }
   }
   _poster(item, wide = false, progress = null) {
     const ep = splitEp(item.title);
