@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -169,6 +169,26 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-5px}
 .mini .mtxt span{font-size:15px}
 .mini .mbtn{width:54px;height:54px}.mini .mbtn ha-icon{--mdc-icon-size:36px}
 .mini .mexp ha-icon{--mdc-icon-size:26px}
+/* 1.5: player_size medium / small */
+@media(min-width:900px){.wrap.wide.ps-medium{grid-template-columns:minmax(340px,420px) minmax(0,1fr)}.wrap.wide.ps-small{grid-template-columns:minmax(280px,330px) minmax(0,1fr)}}
+.ps-medium .hero{padding:18px 20px 16px}.ps-small .hero{padding:14px 16px 12px}
+.ps-medium .art{max-width:340px}.ps-small .art{max-width:230px;border-radius:14px}
+.ps-small .art ha-icon{--mdc-icon-size:60px}
+.ps-medium .meta{margin-top:20px}.ps-small .meta{margin-top:14px}
+.ps-medium .title{font-size:21px;line-height:26px}.ps-small .title{font-size:17px;line-height:22px}
+.ps-medium .artist{font-size:17px;line-height:22px}.ps-small .artist{font-size:14px;line-height:19px}
+.ps-small .times{font-size:11px}.ps-small .scrub{margin-top:10px}
+.ps-medium .ctrl{margin:14px 2px 6px}.ps-small .ctrl{margin:8px 2px 4px}
+.ps-medium .ctrl .sm{width:42px;height:42px}.ps-medium .ctrl .sm ha-icon{--mdc-icon-size:22px}
+.ps-medium .ctrl .md{width:58px;height:58px}.ps-medium .ctrl .md ha-icon{--mdc-icon-size:40px}
+.ps-medium .ctrl .lg{width:74px;height:74px}.ps-medium .ctrl .lg ha-icon{--mdc-icon-size:56px}
+.ps-small .ctrl .sm{width:36px;height:36px}.ps-small .ctrl .sm ha-icon{--mdc-icon-size:19px}
+.ps-small .ctrl .md{width:46px;height:46px}.ps-small .ctrl .md ha-icon{--mdc-icon-size:32px}
+.ps-small .ctrl .lg{width:58px;height:58px}.ps-small .ctrl .lg ha-icon{--mdc-icon-size:44px}
+.ps-small .vol{gap:10px;margin-top:6px}.ps-small .vol ha-icon,.ps-small .vol button ha-icon{--mdc-icon-size:18px}
+.ps-small .room-btn{font-size:13px;padding:6px 11px 6px 9px}.ps-small .top{margin-bottom:10px}
+.ps-small .mini .mart{width:52px;height:52px}.ps-small .mini .mtxt b{font-size:15px}.ps-small .mini .mtxt span{font-size:12.5px}
+.ps-small .mini .mbtn{width:42px;height:42px}.ps-small .mini .mbtn ha-icon{--mdc-icon-size:28px}
 `;
 
 class OneStopMusicCard extends HTMLElement {
@@ -228,7 +248,7 @@ class OneStopMusicCard extends HTMLElement {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this._root = this.shadowRoot;
     const wide = this._cfg.layout !== 'stacked';
-    this._root.innerHTML = `<style>${CSS}</style><ha-card><nav class="roombar" aria-label="Rooms"></nav><div class="wrap ${wide ? 'wide' : ''}">
+    this._root.innerHTML = `<style>${CSS}</style><ha-card><nav class="roombar" aria-label="Rooms"></nav><div class="wrap ${wide ? 'wide' : ''} ${['small', 'medium'].includes(this._cfg.player_size) ? 'ps-' + this._cfg.player_size : ''}">
       <section class="glass hero small">
         <div class="bg"></div>
         <button class="mini" aria-label="Open player"><div class="mart"></div><div class="mtxt"><b class="mtitle"></b><span class="msub"></span></div>
@@ -436,7 +456,7 @@ class OneStopMusicCard extends HTMLElement {
 }
 
 /* ---------- visual editor ---------- */
-const LABELS = { players: 'Speakers (Music Assistant players)', title: 'Card title', rows: 'Rows to show under the search box', layout: 'Layout on wide screens', row_size: 'Items per row' };
+const LABELS = { players: 'Speakers (Music Assistant players)', title: 'Card title', rows: 'Rows to show under the search box', layout: 'Layout on wide screens', player_size: 'Player size', row_size: 'Items per row' };
 const HELPERS = { players: 'Pick the Music Assistant versions of your speakers. The first one is shown first when nothing is playing.', rows: 'Shown in this order.' };
 class OneStopMusicCardEditor extends HTMLElement {
   setConfig(c) { this._config = { ...c }; this._render(); }
@@ -460,9 +480,10 @@ class OneStopMusicCardEditor extends HTMLElement {
       { name: 'players', required: true, selector: { entity: { multiple: true, filter: { domain: 'media_player', integration: 'music_assistant' } } } },
       { name: 'rows', selector: { select: { multiple: true, mode: 'list', options: Object.entries(ROWS).map(([value, r]) => ({ value, label: r.title })) } } },
       { name: 'layout', selector: { select: { mode: 'dropdown', options: [{ value: 'wide', label: 'Player beside the library' }, { value: 'stacked', label: 'Player above the library' }] } } },
+      { name: 'player_size', selector: { select: { mode: 'dropdown', options: [{ value: 'large', label: 'Large' }, { value: 'medium', label: 'Medium' }, { value: 'small', label: 'Small' }] } } },
     ];
     const players = (this._config.players || []).map(p => typeof p === 'string' ? p : p.entity);
-    this._form.data = { rows: DEFAULTS.rows, layout: 'wide', ...this._config, players };
+    this._form.data = { rows: DEFAULTS.rows, layout: 'wide', player_size: 'large', ...this._config, players };
   }
 }
 
