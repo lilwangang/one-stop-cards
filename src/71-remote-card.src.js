@@ -5,7 +5,7 @@
  */
 (() => {
 const init = E => {
-const VERSION = '1.3.1'
+const VERSION = '1.3.2'
 const TAG = 'one-stop-remote-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -165,7 +165,7 @@ class OneStopRemoteCard extends E.Card {
   connectedCallback() {
     super.connectedCallback();
     if (!this._popListen) {
-      this._popListen = e => { const name = e.detail?.popup; if (name == null || !popupList(this._raw).some(p => p.name === String(name))) return; e.stopPropagation(); this._openPopup(String(name)); };   // unknown names bubble up (e.g. a button inside a pop-up opening another pop-up)
+      this._popListen = e => { const name = e.detail?.popup; if (name == null || !popupList(this._raw).some(p => p.name === String(name))) return; e.stopPropagation(); (this._popParent || this)._openPopup(String(name)); };   // a button inside a pop-up swaps the same sheet to the new pop-up   // unknown names bubble up (e.g. a button inside a pop-up opening another pop-up)
       this.addEventListener(POPUP_EVENT, this._popListen);
     }
     if (!this._navListen) { this._navListen = () => this._closePopup(); window.addEventListener('location-changed', this._navListen); }
@@ -211,7 +211,7 @@ class OneStopRemoteCard extends E.Card {
     }
     this._popToken = null;
     const inner = document.createElement(TAG);
-    inner._noNp = true;
+    inner._noNp = true; inner._popParent = this;
     const cfg = { ...raw, rows: Array.isArray(p.rows) ? p.rows : [], title: undefined,
       styles: [raw.styles, 'ha-card{background:none;--ha-card-background:transparent;border:none;border-top:none;border-radius:0;box-shadow:none;padding:4px 2px 2px;backdrop-filter:none;-webkit-backdrop-filter:none;}'].filter(Boolean).join('\n') };
     delete cfg.grid_options; delete cfg.title;
