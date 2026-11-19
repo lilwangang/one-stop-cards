@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const TAG = 'one-stop-room-lights-card';
 const EDITOR_TAG = TAG + '-editor';
 const POPUP_TAG = 'one-stop-room-lights-popup';
@@ -361,6 +361,8 @@ class OneStopRoomLightsCard extends HTMLElement {
       if (wait <= 0) send(); else timer = setTimeout(send, wait);
     });
     range.addEventListener('change', () => { clearTimeout(timer); send(); setTimeout(() => { this._dragging = false; }, 1200); });
+    const relax = () => setTimeout(() => { this._dragging = false; }, 1200);   // a press that wasn't held changes nothing
+    range.addEventListener('pointerup', relax); range.addEventListener('pointercancel', relax);
     // tap / hold on the card body
     let holdTimer = null, held = false;
     card.addEventListener('pointerdown', e => { held = false; holdTimer = setTimeout(() => { held = true; this._action(this._cfg.hold, this._cfg.hold_page); }, 550); });
@@ -504,41 +506,56 @@ class OneStopRoomLightsCard extends HTMLElement {
 }
 
 /* ---------------- pop-up: individual lights + colour picker ---------------- */
+// Styled like the remote's pop-ups: bottom sheet, grab handle, black tiles with a thin tinted border.
+// Each light is a tile: tap = on/off, slide sideways = brightness, colour dot = colours.
 const POP_CSS = `
 :host{position:fixed;inset:0;z-index:9999;display:none;font-family:var(--paper-font-body1_-_font-family,Arial,sans-serif)}
 :host([open]){display:block}
-.back{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}
-.sheet{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(620px,100%);max-height:88vh;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));
-  border-radius:28px 28px 0 0;background:linear-gradient(rgba(var(--osl-rgb),.18),rgba(var(--osl-rgb),.08)),var(--card-background-color,#1c1c1c);color:var(--primary-text-color,#f7f9fc);box-shadow:0 -10px 40px rgba(0,0,0,.4);animation:up .22s ease-out}
-@media(min-width:768px){.sheet{bottom:auto;top:6vh;border-radius:28px}}
-@keyframes up{from{transform:translate(-50%,24px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.back{position:absolute;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fade .2s ease-out}
+.sheet{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(620px,100%);max-height:min(88vh,calc(100dvh - 40px));overflow:auto;overscroll-behavior:contain;box-sizing:border-box;padding:10px 18px calc(22px + env(safe-area-inset-bottom,0px));
+  border-radius:28px 28px 0 0;background:#1c1c1e;color:#fff;box-shadow:0 -10px 40px rgba(0,0,0,.5);border-top:1px solid rgba(255,255,255,.08);animation:up .24s cubic-bezier(.2,.8,.2,1)}
+@media(min-width:768px){.sheet{bottom:auto;top:50%;transform:translate(-50%,-50%);border-radius:28px;animation:pop .2s ease-out}}
+@keyframes up{from{transform:translate(-50%,40px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@keyframes pop{from{transform:translate(-50%,-48%);opacity:0}to{transform:translate(-50%,-50%);opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.grab{width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto 12px}
 header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-header h2{flex:1;margin:0;font:650 21px/25px Arial,sans-serif;letter-spacing:-.4px}
-.x{all:unset;cursor:pointer;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08)}
-.row{margin-bottom:10px;padding:12px;border-radius:24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
-.row.on{background:linear-gradient(rgba(var(--c),.16),rgba(var(--c),.08));border-color:rgba(var(--c),.35)}
-.top{display:flex;align-items:center;gap:12px}
-.ic,.cbtn,.more{all:unset;box-sizing:border-box;flex:none;cursor:pointer;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1)}
-.row.on .ic{background:rgb(var(--c));color:#111}
-.ic ha-icon{--mdc-icon-size:28px}
-.tx{flex:1;min-width:0;cursor:pointer;padding:4px 0}
-.nm{font:600 18px/22px Arial,sans-serif;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.stt{font:15px/20px Arial,sans-serif;opacity:.78}
-.cbtn span{width:30px;height:30px;border-radius:50%;background:conic-gradient(red,#ff0,lime,cyan,blue,#f0f,red);box-shadow:0 0 0 2px rgba(255,255,255,.7)}
-.cbtn.open span{box-shadow:0 0 0 3px #fff}
-.more{width:40px;height:40px;background:transparent;opacity:.7}
-.bar{position:relative;margin-top:10px;height:52px;border-radius:16px;overflow:hidden;background:rgba(255,255,255,.08);cursor:ew-resize;touch-action:none}
-.bar .bf{position:absolute;inset:0 auto 0 0;width:0;background:rgba(var(--c),.75)}
-.bar .bl{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 16px;pointer-events:none;font:600 15px/1 Arial,sans-serif;text-shadow:0 1px 2px rgba(0,0,0,.4)}
-.bar.dis{opacity:.4;cursor:default}
-.pal{display:none;margin-top:12px;gap:10px;flex-direction:column}
-.pal.open{display:flex}
-.pal .lbl{font:600 13px/1 Arial,sans-serif;opacity:.7;letter-spacing:.3px;text-transform:uppercase}
+.ttl{flex:1;min-width:0}
+header h2{margin:0;font:700 20px/24px Arial,sans-serif;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font:14px/18px Arial,sans-serif;opacity:.6;margin-top:2px}
+.x{all:unset;cursor:pointer;flex:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);box-shadow:0 0 0 2px rgba(120,170,255,.75)}
+.x ha-icon{--mdc-icon-size:22px}
+.all{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.all button{all:unset;cursor:pointer;box-sizing:border-box;height:52px;border-radius:14px;background:#000;display:flex;align-items:center;justify-content:center;gap:8px;font:700 15px/1 Arial,sans-serif;border:1px solid rgba(var(--b),.7)}
+.all button ha-icon{color:rgb(var(--b));--mdc-icon-size:22px}
+.all button:active,.tile:active{transform:scale(.97)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-auto-flow:row dense}
+.tile{position:relative;box-sizing:border-box;min-height:118px;border-radius:14px;background:#000;border:1px solid rgba(255,255,255,.16);overflow:hidden;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none;transition:border-color .25s,box-shadow .25s,transform .12s}
+.tile.on{border-color:rgba(var(--c),.8);box-shadow:0 0 18px -6px rgba(var(--c),.65)}
+.tile .bf{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,rgba(var(--c),.10),rgba(var(--c),.26));transition:width .25s}
+.tile.drag .bf{transition:none}
+.tile .in{position:relative;height:100%;min-height:118px;box-sizing:border-box;padding:16px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;pointer-events:none}
+.tile .ic{--mdc-icon-size:32px;color:rgba(255,255,255,.45);transition:color .25s,filter .25s}
+.tile.on .ic{color:rgb(var(--c));filter:drop-shadow(0 0 8px rgba(var(--c),.7))}
+.tile .nm{font:700 15px/19px Arial,sans-serif;max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .stt{font:13px/16px Arial,sans-serif;opacity:.65}
+.tile.dead{opacity:.45}
+.tile .dot{all:unset;position:absolute;top:8px;right:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1}
+.tile .dot span{width:18px;height:18px;border-radius:50%;background:conic-gradient(red,#ff0,lime,cyan,blue,#f0f,red);box-shadow:0 0 0 2px rgba(0,0,0,.9),0 0 0 3px rgba(255,255,255,.55)}
+.tile.sel .dot span{box-shadow:0 0 0 2px #000,0 0 0 4px #fff}
+.tile .more{all:unset;position:absolute;top:8px;left:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.5;z-index:1}
+.tile .more ha-icon{--mdc-icon-size:20px}
+.tile.sel{border-color:#fff}
+.pal{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:14px;background:#000;border:1px solid rgba(var(--c),.6)}
+.pal .lbl{font:700 12px/1 Arial,sans-serif;opacity:.6;letter-spacing:.6px;text-transform:uppercase}
+.pal .top{display:flex;align-items:center;justify-content:space-between}
+.pal .nm{font:700 15px/1 Arial,sans-serif}
 .sw{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-.sw button{all:unset;cursor:pointer;aspect-ratio:1;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.25),0 2px 6px rgba(0,0,0,.3)}
-.sw button:active{transform:scale(.92)}
-.hue{position:relative;height:44px;border-radius:14px;cursor:ew-resize;touch-action:none;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
-.hue i{position:absolute;top:-3px;bottom:-3px;width:10px;margin-left:-5px;border-radius:6px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none}
+.sw button{all:unset;cursor:pointer;aspect-ratio:1;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.25),0 2px 6px rgba(0,0,0,.4)}
+.sw button:active{transform:scale(.9)}
+.hue{position:relative;height:40px;border-radius:12px;cursor:ew-resize;touch-action:none;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}
+.hue i{position:absolute;top:-3px;bottom:-3px;width:10px;margin-left:-5px;border-radius:6px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.4);pointer-events:none}
+.hint{font:13px/17px Arial,sans-serif;opacity:.5;text-align:center;margin-top:14px}
 .empty{opacity:.7;padding:20px 4px}
 .wheelbox{display:flex;flex-direction:column;align-items:center;gap:16px;padding:6px 0 10px}
 .wheel{width:260px;height:260px;border-radius:50%;cursor:crosshair;touch-action:none;position:relative;background:radial-gradient(circle,#fff 0,rgba(255,255,255,0) 70%),conic-gradient(from 90deg,red,#ff0,lime,cyan,blue,#f0f,red)}
@@ -554,93 +571,114 @@ class OneStopRoomLightsPopup extends HTMLElement {
   close() { this.removeAttribute('open'); document.removeEventListener('keydown', this._onKey); }
   update(hass) { this._hass = hass; if (this.hasAttribute('open') && this._mode === 'lights') this._refresh(); }
   _build() {
-    const card = this.card, title = card._title();
-    this.style.setProperty('--osl-rgb', card._el.card.style.getPropertyValue('--osl-rgb') || '184,184,184');
-    this.shadowRoot.innerHTML = `<style>${POP_CSS}</style><div class="back"></div><div class="sheet" role="dialog" aria-label="${esc(title)}">
-      <header><h2>${esc(this._mode === 'colour' ? title + ' colour' : title)}</h2><button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></header><div class="body"></div></div>`;
-    this.shadowRoot.querySelector('.back').onclick = () => this.close();
-    this.shadowRoot.querySelector('.x').onclick = () => this.close();
-    this._body = this.shadowRoot.querySelector('.body');
-    this._rows = {};
-    if (this._mode === 'colour') this._buildColour(); else this._refresh();
+    const card = this.card, title = card._title(), lights = this._mode !== 'colour';
+    this.shadowRoot.innerHTML = `<style>${POP_CSS}</style><div class="back"></div><div class="sheet" role="dialog" aria-label="${esc(title)}"><div class="grab"></div>
+      <header><div class="ttl"><h2>${esc(lights ? title : title + ' colour')}</h2><div class="sub"></div></div><button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></header>
+      ${lights ? `<div class="all"><button class="aon" style="--b:110,220,140"><ha-icon icon="mdi:lightbulb-on"></ha-icon>All on</button><button class="aoff" style="--b:255,110,110"><ha-icon icon="mdi:lightbulb-off-outline"></ha-icon>All off</button></div>` : ''}
+      <div class="body"></div>${lights ? '<div class="hint">Tap a light to switch it · slide across it to dim</div>' : ''}</div>`;
+    const q = s => this.shadowRoot.querySelector(s);
+    q('.back').onclick = () => this.close();
+    q('.x').onclick = () => this.close();
+    this._body = q('.body'); this._sub = q('.sub');
+    this._rows = {}; this._sel = null;
+    if (!lights) return this._buildColour();
+    q('.aon').onclick = () => { const ids = roomLights(this._hass, card._cfg); if (ids.length) card._call('homeassistant', 'turn_on', { entity_id: ids }); };
+    q('.aoff').onclick = () => { const ids = roomLights(this._hass, card._cfg); if (ids.length) card._call('homeassistant', 'turn_off', { entity_id: ids }); };
+    this._refresh();
   }
   _refresh() {
     const h = this._hass, card = this.card; if (!h || !this._body) return;
     const ids = roomLights(h, card._cfg);
+    if (this._sub) { const n = ids.filter(id => isOn(h.states[id])).length; this._sub.textContent = !ids.length ? '' : n ? `${n} of ${ids.length} on` : 'All off'; }
     if (!ids.length) { this._body.innerHTML = `<div class="empty">No lights are assigned to this room yet. Assign lights to the room in Home Assistant, or add them under “Other lights” in the card editor.</div>`; this._rows = {}; return; }
     if (Object.keys(this._rows).join() !== ids.join()) {
-      this._body.innerHTML = ''; this._rows = {};
-      for (const id of ids) { const row = this._makeRow(id); this._body.appendChild(row); this._rows[id] = row; }
+      this._body.innerHTML = '<div class="grid"></div>'; this._grid = this._body.firstChild; this._rows = {}; this._sel = null;
+      for (const id of ids) { const t = this._makeRow(id); this._grid.appendChild(t); this._rows[id] = t; }
     }
     for (const id of ids) this._paintRow(id);
   }
-  _makeRow(id) {
-    const card = this.card;
-    const row = document.createElement('div'); row.className = 'row';
+  _togglePalette(id) {
+    this._pal?.remove(); this._pal = null;
+    Object.values(this._rows).forEach(t => t.classList.remove('sel'));
+    if (this._sel === id) { this._sel = null; return; }
+    this._sel = id; const tile = this._rows[id]; tile.classList.add('sel');
+    const card = this.card, st = this._hass.states[id];
     const whites = [2000, 2700, 3000, 3500, 4000, 5000, 6500];
     const colours = [[255, 0, 0], [255, 120, 0], [255, 210, 0], [0, 200, 60], [0, 200, 255], [40, 80, 255], [170, 60, 255], [255, 60, 170]];
-    row.innerHTML = `<div class="top">
-        <button class="ic" aria-label="Turn on or off"><ha-icon></ha-icon></button>
-        <div class="tx"><div class="nm"></div><div class="stt"></div></div>
-        <button class="cbtn" aria-label="Colour"><span></span></button>
-        <button class="more" aria-label="All settings"><ha-icon icon="mdi:dots-vertical"></ha-icon></button>
-      </div>
-      <div class="bar" role="slider" aria-label="Brightness" aria-valuemin="1" aria-valuemax="100"><div class="bf"></div><div class="bl"><span>Brightness</span><span class="bp"></span></div></div>
-      <div class="pal">
-        <div class="lbl">White</div><div class="sw wh">${whites.map(k => `<button data-k="${k}" title="${k} K" style="background:rgb(${kelvinToRgb(k).join(',')})"></button>`).join('')}</div>
-        <div class="lbl cl">Colour</div><div class="sw co" style="grid-template-columns:repeat(8,1fr)">${colours.map(c => `<button data-rgb="${c.join(',')}" style="background:rgb(${c.join(',')})"></button>`).join('')}</div>
-        <div class="hue" role="slider" aria-label="Pick any colour"><i></i></div>
-      </div>`;
-    const q = s => row.querySelector(s);
-    const toggle = () => card._call('homeassistant', 'toggle', { entity_id: id });
-    q('.ic').addEventListener('click', toggle);
-    q('.tx').addEventListener('click', toggle);
-    q('.more').addEventListener('click', () => this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })));
-    q('.cbtn').addEventListener('click', () => { const p = q('.pal'); p.classList.toggle('open'); q('.cbtn').classList.toggle('open', p.classList.contains('open')); });
-    const set = data => { const st = this._hass.states[id]; const d = { entity_id: id, ...data }; if (!isOn(st)) d.brightness_pct = +card._cfg.wake_brightness || 50; card._call('light', 'turn_on', d); };
-    row.querySelectorAll('.wh button').forEach(b => b.addEventListener('click', () => { const st = this._hass.states[id]; const lo = st.attributes.min_color_temp_kelvin || 2000, hi = st.attributes.max_color_temp_kelvin || 6500; set({ color_temp_kelvin: Math.max(lo, Math.min(hi, +b.dataset.k)) }); }));
-    row.querySelectorAll('.co button').forEach(b => b.addEventListener('click', () => set({ rgb_color: b.dataset.rgb.split(',').map(Number) })));
-    // drag helpers that work with fingers and mice
-    const drag = (el, onMove, onEnd) => {
-      let active = false;
-      const pos = e => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
-      el.addEventListener('pointerdown', e => { if (el.classList.contains('dis')) return; active = true; el.setPointerCapture(e.pointerId); onMove(pos(e), true); e.preventDefault(); });
-      el.addEventListener('pointermove', e => { if (active) onMove(pos(e), false); });
-      const end = e => { if (!active) return; active = false; onEnd(pos(e)); };
-      el.addEventListener('pointerup', end); el.addEventListener('pointercancel', e => { active = false; row._drag = false; });
-    };
-    let last = 0, timer = null;
+    const temp = supportsTemp(st), colour = supportsColour(st);
+    const pal = document.createElement('div'); pal.className = 'pal';
+    pal.style.setProperty('--c', (isOn(st) ? lightRgb(st) : [200, 200, 200]).join(','));
+    pal.innerHTML = `<div class="top"><span class="nm">${esc(st.attributes.friendly_name || id)}</span></div>
+      ${temp ? `<div class="lbl">White</div><div class="sw wh">${whites.map(k => `<button data-k="${k}" title="${k} K" style="background:rgb(${kelvinToRgb(k).join(',')})"></button>`).join('')}</div>` : ''}
+      ${colour ? `<div class="lbl">Colour</div><div class="sw co" style="grid-template-columns:repeat(8,1fr)">${colours.map(c => `<button data-rgb="${c.join(',')}" style="background:rgb(${c.join(',')})"></button>`).join('')}</div>
+      <div class="hue" role="slider" aria-label="Pick any colour"><i></i></div>` : ''}`;
+    const set = data => { const s = this._hass.states[id]; const d = { entity_id: id, ...data }; if (!isOn(s)) d.brightness_pct = +card._cfg.wake_brightness || 50; card._call('light', 'turn_on', d); };
+    pal.querySelectorAll('.wh button').forEach(b => b.addEventListener('click', () => { const s = this._hass.states[id]; const lo = s.attributes.min_color_temp_kelvin || 2000, hi = s.attributes.max_color_temp_kelvin || 6500; set({ color_temp_kelvin: Math.max(lo, Math.min(hi, +b.dataset.k)) }); }));
+    pal.querySelectorAll('.co button').forEach(b => b.addEventListener('click', () => set({ rgb_color: b.dataset.rgb.split(',').map(Number) })));
+    const hue = pal.querySelector('.hue');
+    if (hue) {
+      if (Array.isArray(st.attributes.hs_color)) hue.querySelector('i').style.left = (st.attributes.hs_color[0] / 360 * 100) + '%';
+      let active = false, last = 0, timer = null; hue.dataset.holdSlide = '';
+      const f = e => { const r = hue.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
+      const send = v => { last = Date.now(); set({ hs_color: [Math.round(v * 360) % 360, 100] }); };
+      const move = e => { const v = f(e); hue.querySelector('i').style.left = v * 100 + '%'; clearTimeout(timer); const w = 250 - (Date.now() - last); if (w <= 0) send(v); else timer = setTimeout(() => send(v), w); };
+      hue.addEventListener('pointerdown', e => { active = true; hue.setPointerCapture(e.pointerId); move(e); e.preventDefault(); });
+      hue.addEventListener('pointermove', e => { if (active) move(e); });
+      hue.addEventListener('pointerup', e => { if (!active) return; active = false; clearTimeout(timer); send(f(e)); });
+      hue.addEventListener('pointercancel', () => { active = false; });
+    }
+    tile.after(pal); this._pal = pal;
+  }
+  _makeRow(id) {
+    const card = this.card;
+    const tile = document.createElement('div'); tile.className = 'tile';
+    tile.innerHTML = `<div class="bf"></div><button class="more" aria-label="All settings"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>
+      <button class="dot" aria-label="Colour"><span></span></button>
+      <div class="in"><ha-icon class="ic"></ha-icon><div class="nm"></div><div class="stt"></div></div>`;
+    const q = s => tile.querySelector(s);
+    q('.more').addEventListener('click', e => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); });
+    q('.dot').addEventListener('click', e => { e.stopPropagation(); this._togglePalette(id); });
+    for (const b of [q('.more'), q('.dot')]) b.addEventListener('pointerdown', e => e.stopPropagation());
+    // tap = toggle; sideways slide = brightness (vertical moves still scroll the sheet)
+    let start = null, sliding = false, last = 0, timer = null, want = 0;
+    const frac = e => { const r = tile.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
     const sendB = v => { last = Date.now(); card._call('light', 'turn_on', { entity_id: id, brightness_pct: v }); };
-    drag(q('.bar'), (f, first) => {
-      row._drag = true; const v = Math.max(1, Math.round(f * 100));
-      q('.bf').style.width = v + '%'; q('.bp').textContent = v + '%'; row._want = v;
-      clearTimeout(timer); const wait = 200 - (Date.now() - last); if (wait <= 0) sendB(v); else timer = setTimeout(() => sendB(row._want), wait);
-    }, f => { clearTimeout(timer); sendB(Math.max(1, Math.round(f * 100))); setTimeout(() => { row._drag = false; }, 1500); });
-    let hLast = 0, hTimer = null;
-    const sendH = hue => { hLast = Date.now(); set({ hs_color: [hue, 100] }); };
-    drag(q('.hue'), f => {
-      const hue = Math.round(f * 360) % 360; q('.hue i').style.left = (f * 100) + '%';
-      clearTimeout(hTimer); const wait = 250 - (Date.now() - hLast); if (wait <= 0) sendH(hue); else hTimer = setTimeout(() => sendH(hue), wait);
-    }, f => { clearTimeout(hTimer); sendH(Math.round(f * 360) % 360); });
-    return row;
+    tile.addEventListener('pointerdown', e => { if (e.button > 0) return; start = { x: e.clientX, y: e.clientY, id: e.pointerId }; sliding = false; });
+    tile.addEventListener('pointermove', e => {
+      if (!start) return;
+      const st = this._hass.states[id];
+      if (!sliding) {
+        const dx = Math.abs(e.clientX - start.x), dy = Math.abs(e.clientY - start.y);
+        if (dy > 10 && dy > dx) { start = null; return; }
+        if (dx < 10 || !id.startsWith('light.') || !dimmable(st) || !live(st)) return;
+        sliding = true; tile._drag = true; tile.classList.add('drag'); try { tile.setPointerCapture(start.id); } catch (_) {}
+      }
+      want = Math.max(1, Math.round(frac(e) * 100));
+      q('.bf').style.width = want + '%'; q('.stt').textContent = want + '%';
+      if (!isOn(st)) { tile.classList.add('on'); tile.style.setProperty('--c', lightRgb(st).join(',')); }
+      clearTimeout(timer); const w = 200 - (Date.now() - last); if (w <= 0) sendB(want); else timer = setTimeout(() => sendB(want), w);
+    });
+    tile.addEventListener('pointerup', () => {
+      if (!start) return; start = null;
+      if (sliding) { sliding = false; clearTimeout(timer); sendB(want); tile.classList.remove('drag'); setTimeout(() => { tile._drag = false; }, 1500); return; }
+      if (live(this._hass.states[id])) card._call('homeassistant', 'toggle', { entity_id: id });
+    });
+    tile.addEventListener('pointercancel', () => { start = null; if (sliding) { sliding = false; tile.classList.remove('drag'); tile._drag = false; } });
+    return tile;
   }
   _paintRow(id) {
-    const h = this._hass, st = h.states[id], row = this._rows[id]; if (!st || !row) return;
-    const q = s => row.querySelector(s);
+    const h = this._hass, st = h.states[id], tile = this._rows[id]; if (!st || !tile || tile._drag) return;
+    const q = s => tile.querySelector(s);
     const on = isOn(st), isLight = id.startsWith('light.'), dim = isLight && dimmable(st);
     const pct = on ? Math.max(1, Math.round((st.attributes.brightness ?? 255) / 2.55)) : 0;
-    const col = on ? lightRgb(st) : [150, 150, 150];
-    row.classList.toggle('on', on); row.style.setProperty('--c', col.join(','));
-    q('.ic ha-icon').setAttribute('icon', st.attributes.icon || (isLight ? (on ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline') : (on ? 'mdi:power-plug' : 'mdi:power-plug-off')));
+    tile.classList.toggle('on', on); tile.classList.toggle('dead', !live(st));
+    tile.style.setProperty('--c', (on ? lightRgb(st) : [150, 150, 150]).join(','));
+    q('.ic').setAttribute('icon', st.attributes.icon || (isLight ? (on ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline') : (on ? 'mdi:power-plug' : 'mdi:power-plug-off')));
     q('.nm').textContent = st.attributes.friendly_name || id;
     q('.stt').textContent = !live(st) ? 'Not responding' : on ? (dim ? pct + '%' : 'On') : 'Off';
-    q('.bar').classList.toggle('hide', !dim); q('.bar').classList.toggle('dis', !live(st));
-    if (!row._drag) { q('.bf').style.width = pct + '%'; q('.bp').textContent = on ? pct + '%' : 'Off'; }
-    const temp = isLight && supportsTemp(st), colour = isLight && supportsColour(st);
-    q('.cbtn').classList.toggle('hide', !(temp || colour));
-    q('.wh').classList.toggle('hide', !temp); q('.pal .lbl').classList.toggle('hide', !temp);
-    q('.co').classList.toggle('hide', !colour); q('.cl').classList.toggle('hide', !colour); q('.hue').classList.toggle('hide', !colour);
-    if (on && Array.isArray(st.attributes.hs_color) && !row._hueDrag) q('.hue i').style.left = (st.attributes.hs_color[0] / 360 * 100) + '%';
+    q('.bf').style.width = (on && dim ? pct : 0) + '%';
+    q('.dot').classList.toggle('hide', !(isLight && (supportsTemp(st) || supportsColour(st))));
+    if (this._sel === id && this._pal) this._pal.style.setProperty('--c', (on ? lightRgb(st) : [200, 200, 200]).join(','));
   }
   _buildColour() {
     const card = this.card;
@@ -652,7 +690,7 @@ class OneStopRoomLightsPopup extends HTMLElement {
     const pick = e => { const r = wheel.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2;
       const d = Math.min(1, Math.hypot(x, y) / (r.width / 2)); let hue = Math.atan2(y, x) * 180 / Math.PI; hue = (hue + 360) % 360;
       return [Math.round(hue), Math.round(d * 100)]; };
-    let down = false, last = 0;
+    let down = false, last = 0; wheel.dataset.holdSlide = '';
     wheel.addEventListener('pointerdown', e => { down = true; wheel.setPointerCapture(e.pointerId); });
     wheel.addEventListener('pointermove', e => { if (!down || Date.now() - last < 200) return; last = Date.now(); card._applyColour({ hs_color: pick(e) }); });
     wheel.addEventListener('pointerup', e => { down = false; card._applyColour({ hs_color: pick(e) }); });
