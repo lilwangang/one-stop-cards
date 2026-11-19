@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.14.0';
+const VERSION = '1.15.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -456,6 +456,9 @@ class OneStopStreamingCard extends HTMLElement {
     const k = JSON.stringify(rows.map(r => [r.title, r.items.map(i => i.id + (i.image || '') + (i.progress ?? ''))])); if (box.dataset.k === k) return; box.dataset.k = k;
     const sl = {}; box.querySelectorAll('.row').forEach((r, i) => sl[i] = r.scrollLeft);
     this._home = rows;
+    if (!this._epWarm) { this._epWarm = true; const prof = Recent.profileOf('netflix') || Recent.act.netflix || '';
+      const ids = [...new Set(rows.filter(r => /continue watching|my list/i.test(r.title)).flatMap(r => r.items.map(i => i.id)).concat(rows.slice(0, 4).flatMap(r => r.items.slice(0, 6).map(i => i.id))))].slice(0, 40);
+      (async () => { for (const id of ids) { try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_episodes', service_data: { id: String(id), ...(prof ? { profile: prof } : {}) }, return_response: true }); const d = r?.response; if (d && !d.error) localStorage.setItem('one-stop-ep-ep|' + prof + '|' + id, JSON.stringify(d)); } catch (e) {} } })(); }
     box.innerHTML = rows.map((r, ri) => `<div class="sec hrow wide"><div class="sh"><h2>${esc(r.title)}</h2></div><div class="row">${r.items.map((x, ii) => `<button class="it" data-h="${ri}.${ii}" aria-label="${esc(x.title)}"><div class="ph">${x.image ? `<img loading="${ri < 3 ? 'eager' : 'lazy'}" decoding="async" src="${esc(x.image)}" alt="">` : ''}<div class="fb ${x.image ? 'hide' : ''}">${esc(x.title)}</div>${x.progress != null ? `<div class="pb"><i style="width:${Math.max(3, Math.min(100, +x.progress))}%"></i></div>` : ''}</div><div class="nm">${esc(x.title)}</div></button>`).join('')}</div></div>`).join('');
     box.querySelectorAll('.row').forEach((r, i) => { if (sl[i]) r.scrollLeft = sl[i]; });
     box.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
@@ -471,12 +474,24 @@ class OneStopStreamingCard extends HTMLElement {
     w.querySelector('[data-x]').addEventListener('click', close);
     let playIt = () => this._play(x.url, x.title);
     w.querySelector('[data-play]').addEventListener('click', () => { close(); playIt(); });
+    const prof = Recent.profileOf('netflix') || Recent.act.netflix || '', ek = 'ep|' + prof + '|' + x.id;
+    const cached = (() => { try { return JSON.parse(localStorage.getItem('one-stop-ep-' + ek) || 'null'); } catch (e) { return null; } })();
+    let shownKey = '';
+    const show = d => {
+      const box = w.querySelector('[data-eps]'); if (!box || !w.isConnected || !d) return;
+      const k = JSON.stringify([d.current, d.seasons?.map(z => z.eps.map(e => e.id + (e.progress ?? '')))]); if (k === shownKey) return; shownKey = k;
+      this._showEps(w, box, x, d, room, close, f => { playIt = f; });
+    };
+    if (cached) show(cached);                                       // instant: what this phone saw last time
     let d = null;
-    try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_episodes', service_data: { id: String(x.id), ...(Recent.profileOf('netflix') ? { profile: Recent.profileOf('netflix') } : {}) }, return_response: true }); d = r?.response; } catch (e) { d = null; }
-    const box = w.querySelector('[data-eps]'); if (!box || !w.isConnected) return;
+    try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_episodes', service_data: { id: String(x.id), ...(prof ? { profile: prof } : {}) }, return_response: true }); d = r?.response; } catch (e) { d = null; }
+    if (d && !d.error) { try { localStorage.setItem('one-stop-ep-' + ek, JSON.stringify(d)); } catch (e) {} show(d); }
+    else if (!cached) { const box = w.querySelector('[data-eps]'); if (box) box.innerHTML = ''; }
+  }
+  _showEps(w, box, x, d, room, close, setPlay) {
     if (!d?.seasons?.length) { box.innerHTML = ''; return; }                // a movie (or episodes unavailable): just Play
     const all = d.seasons.flatMap(s => s.eps.map(e => ({ ...e, s: s.n }))), cur = all.find(e => e.id === d.current);
-    if (cur) { const pb = w.querySelector('[data-play]'); pb.innerHTML = `<ha-icon icon="mdi:play"></ha-icon>${cur.progress ? 'Resume' : 'Play'} S${cur.s}:E${cur.n}<small>on ${esc(room)}</small>`; playIt = () => this._play('https://www.netflix.com/watch/' + cur.id, `${x.title} S${cur.s}:E${cur.n}`); }
+    if (cur) { const pb = w.querySelector('[data-play]'); pb.innerHTML = `<ha-icon icon="mdi:play"></ha-icon>${cur.progress ? 'Resume' : 'Play'} S${cur.s}:E${cur.n}<small>on ${esc(room)}</small>`; setPlay(() => this._play('https://www.netflix.com/watch/' + cur.id, `${x.title} S${cur.s}:E${cur.n}`)); }
     let season = cur ? cur.s : d.seasons[0].n;
     const paint = () => {
       const s = d.seasons.find(z => z.n === season) || d.seasons[0];
