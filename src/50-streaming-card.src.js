@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.13.1';
+const VERSION = '1.14.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -306,6 +306,26 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .wide .ph{aspect-ratio:16/9;border-radius:8px}
 .wide .pb{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.3)}.wide .pb i{display:block;height:100%;background:#e50914}
 .hrow h2{font-size:calc(var(--title,20px) - 2px)}
+.nfs{padding:0;overflow:hidden auto;background:#181818}
+.nfs .hero2{position:relative;aspect-ratio:16/9;background:#000}
+.nfs .hero2 img{width:100%;height:100%;object-fit:cover;display:block}
+.nfs .hero2::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 55%,#181818)}
+.nfs .x2{position:absolute;top:10px;right:10px;z-index:2;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.7)}
+.nfs .in2{padding:0 16px 18px;margin-top:-28px;position:relative}
+.nfs h3{font-size:24px;margin:0 0 10px}
+.nfs .playb{width:100%;height:50px;border-radius:6px;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px}
+.nfs .playb small{font-weight:500;opacity:.7;margin-left:4px}
+.nfs .seas{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:18px 0 10px}.nfs .seas::-webkit-scrollbar{display:none}
+.nfs .seas button{flex:none;height:36px;padding:0 14px;border-radius:999px;font-weight:600;font-size:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2)}
+.nfs .seas button.on{background:#fff;color:#000;border-color:#fff}
+.nfs .ep{display:grid;grid-template-columns:132px minmax(0,1fr);gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);width:100%;text-align:left}
+.nfs .ep .im{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.08)}
+.nfs .ep .im img{width:100%;height:100%;object-fit:cover;display:block}
+.nfs .ep .im ha-icon{position:absolute;inset:0;margin:auto;width:34px;height:34px;--mdc-icon-size:34px;color:#fff;filter:drop-shadow(0 1px 4px rgba(0,0,0,.8))}
+.nfs .ep .im .pb{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.3)}.nfs .ep .im .pb i{display:block;height:100%;background:#e50914}
+.nfs .ep b{display:block;font-size:15px;line-height:1.25}.nfs .ep small{display:block;font-size:12.5px;opacity:.65;margin-top:2px}
+.nfs .ep p{margin:4px 0 0;font-size:12.5px;line-height:1.35;opacity:.75;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nfs .ep.cur{background:rgba(255,255,255,.05);border-radius:8px}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
@@ -439,7 +459,35 @@ class OneStopStreamingCard extends HTMLElement {
     box.innerHTML = rows.map((r, ri) => `<div class="sec hrow wide"><div class="sh"><h2>${esc(r.title)}</h2></div><div class="row">${r.items.map((x, ii) => `<button class="it" data-h="${ri}.${ii}" aria-label="${esc(x.title)}"><div class="ph">${x.image ? `<img loading="${ri < 3 ? 'eager' : 'lazy'}" decoding="async" src="${esc(x.image)}" alt="">` : ''}<div class="fb ${x.image ? 'hide' : ''}">${esc(x.title)}</div>${x.progress != null ? `<div class="pb"><i style="width:${Math.max(3, Math.min(100, +x.progress))}%"></i></div>` : ''}</div><div class="nm">${esc(x.title)}</div></button>`).join('')}</div></div>`).join('');
     box.querySelectorAll('.row').forEach((r, i) => { if (sl[i]) r.scrollLeft = sl[i]; });
     box.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
-    box.querySelectorAll('[data-h]').forEach(el => el.addEventListener('click', () => { const [a, b] = el.dataset.h.split('.').map(Number), x = this._home[a]?.items[b]; if (!x) return; this._buzz(); this._play(x.url, x.title); }));
+    box.querySelectorAll('[data-h]').forEach(el => el.addEventListener('click', () => { const [a, b] = el.dataset.h.split('.').map(Number), x = this._home[a]?.items[b]; if (!x) return; this._buzz(); this._details(x); }));
+  }
+  async _details(x) {                                // Netflix-style page: Play / Resume and every season's episodes
+    const R = this.shadowRoot, room = this._cfg.room_name || 'the TV', w = document.createElement('div'); w.className = 'pop';
+    w.innerHTML = `<div class="sheet nfs" role="dialog" aria-label="${esc(x.title)}"><div class="hero2">${x.image ? `<img src="${esc(x.image)}" alt="">` : ''}<button class="x2" data-x aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      <div class="in2"><h3>${esc(x.title)}</h3><button class="playb" data-play><ha-icon icon="mdi:play"></ha-icon>Play on ${esc(room)}</button><div data-eps><div class="empty" style="margin-top:14px">Loading episodes…</div></div></div></div>`;
+    R.appendChild(w);
+    const close = () => w.remove();
+    w.addEventListener('click', e => { if (e.target === w) close(); });
+    w.querySelector('[data-x]').addEventListener('click', close);
+    let playIt = () => this._play(x.url, x.title);
+    w.querySelector('[data-play]').addEventListener('click', () => { close(); playIt(); });
+    let d = null;
+    try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_episodes', service_data: { id: String(x.id), ...(Recent.profileOf('netflix') ? { profile: Recent.profileOf('netflix') } : {}) }, return_response: true }); d = r?.response; } catch (e) { d = null; }
+    const box = w.querySelector('[data-eps]'); if (!box || !w.isConnected) return;
+    if (!d?.seasons?.length) { box.innerHTML = ''; return; }                // a movie (or episodes unavailable): just Play
+    const all = d.seasons.flatMap(s => s.eps.map(e => ({ ...e, s: s.n }))), cur = all.find(e => e.id === d.current);
+    if (cur) { const pb = w.querySelector('[data-play]'); pb.innerHTML = `<ha-icon icon="mdi:play"></ha-icon>${cur.progress ? 'Resume' : 'Play'} S${cur.s}:E${cur.n}<small>on ${esc(room)}</small>`; playIt = () => this._play('https://www.netflix.com/watch/' + cur.id, `${x.title} S${cur.s}:E${cur.n}`); }
+    let season = cur ? cur.s : d.seasons[0].n;
+    const paint = () => {
+      const s = d.seasons.find(z => z.n === season) || d.seasons[0];
+      box.innerHTML = `${d.seasons.length > 1 ? `<div class="seas">${d.seasons.map(z => `<button class="${z.n === s.n ? 'on' : ''}" data-s="${z.n}">${esc(z.title || 'Season ' + z.n)}</button>`).join('')}</div>` : '<div style="height:14px"></div>'}
+        ${s.eps.map(e => `<button class="ep ${e.id === d.current ? 'cur' : ''}" data-e="${esc(e.id)}"><div class="im">${e.img ? `<img loading="lazy" src="${esc(e.img)}" alt="">` : ''}<ha-icon icon="mdi:play-circle-outline"></ha-icon>${e.progress ? `<div class="pb"><i style="width:${Math.max(3, e.watched ? 100 : e.progress)}%"></i></div>` : ''}</div>
+          <div><b>${e.n}. ${esc(e.t || 'Episode ' + e.n)}</b><small>${[e.mins ? e.mins + ' min' : '', e.watched ? 'Watched' : ''].filter(Boolean).join(' · ')}</small><p>${esc(e.d || '')}</p></div></button>`).join('')}`;
+      box.querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', () => { this._buzz(); season = +b.dataset.s; paint(); }));
+      box.querySelectorAll('[data-e]').forEach(b => b.addEventListener('click', () => { const e = s.eps.find(z => z.id === b.dataset.e); close(); this._play('https://www.netflix.com/watch/' + e.id, `${x.title} S${s.n}:E${e.n}`); }));
+      box.querySelector('.ep.cur')?.scrollIntoView({ block: 'center' });
+    };
+    paint();
   }
   async _loadRows(pkg, noHome) {
     if (!noHome && this._homeMode()) return this._loadHome(pkg);
