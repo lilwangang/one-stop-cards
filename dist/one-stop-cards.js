@@ -1834,13 +1834,13 @@ window.__oneStopShades = { roomShades, scheduleFor, Schedules, VERSION };
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-roller-shade-card';
 const EDITOR_TAG = TAG + '-editor';
 
 const DEFAULTS = {
   name: '', icon: 'mdi:roller-shade', show_climate: true, show_buttons: true, show_stop: true,
-  show_percent: true, start_open: false, haptics: true, accent_color: [255, 183, 77],
+  show_percent: true, right_closes: true, start_open: false, haptics: true, accent_color: [255, 183, 77],
 };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const okRgb = v => Array.isArray(v) && v.length === 3 && v.every(n => Number.isFinite(+n));
@@ -1873,7 +1873,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 @container (max-width:470px){.head{flex-wrap:wrap}.chips{width:100%;padding-left:58px;margin-top:-4px}}
 .chip.t{background:rgba(214,69,80,.32);border:1px solid rgba(240,120,128,.55)}
 .chip.h{background:rgba(64,120,214,.32);border:1px solid rgba(120,170,240,.55)}
-.bar{position:relative;height:74px;margin-top:14px;border-radius:22px;overflow:hidden;touch-action:none;user-select:none;cursor:grab;
+.bar{position:relative;height:74px;margin-top:14px;border-radius:22px;overflow:hidden;touch-action:pan-y;user-select:none;cursor:grab;
   background:rgba(8,10,14,.55);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 2px 8px rgba(0,0,0,.35)}
 .bar.dead{opacity:.5;pointer-events:none}
 .bar.drag{cursor:grabbing}
@@ -1885,6 +1885,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .fill::after{content:"";position:absolute;top:8px;bottom:8px;right:5px;width:4px;border-radius:3px;background:rgba(255,255,255,.8);
   box-shadow:0 0 10px rgba(var(--ac),.9);opacity:var(--hem,1)}
 .bar.drag .fill{transition:none}
+.rev .fill{background:linear-gradient(90deg,rgba(120,132,150,.42),rgba(150,162,180,.55))}
+.rev .fill::after{box-shadow:0 0 8px rgba(255,255,255,.5)}
 .lab{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 18px;pointer-events:none}
 .lab ha-icon{--mdc-icon-size:24px;opacity:.9}
 .mid{text-align:center;line-height:1.2}
@@ -1927,8 +1929,9 @@ class OneStopRollerShadeCard extends HTMLElement {
     const ac = okRgb(c.accent_color) ? c.accent_color : DEFAULTS.accent_color;
     const shades = (c.shades || []).filter(Boolean);
     const name = c.name || h.states[c.entity]?.attributes?.friendly_name || 'Shades';
-    const bar = (id, label) => `<div class="bar" data-bar="${esc(id)}"><div class="fill"></div><div class="lab"><ha-icon icon="mdi:roller-shade-closed"></ha-icon>
-      <div class="mid"><b>${esc(label)}</b><span data-st></span></div><ha-icon icon="mdi:roller-shade"></ha-icon></div></div>`;
+    const rev = c.right_closes !== false, [iL, iR] = rev ? ['mdi:roller-shade', 'mdi:roller-shade-closed'] : ['mdi:roller-shade-closed', 'mdi:roller-shade'];
+    const bar = (id, label) => `<div class="bar${rev ? ' rev' : ''}" data-hold-slide data-bar="${esc(id)}"><div class="fill"></div><div class="lab"><ha-icon icon="${iL}"></ha-icon>
+      <div class="mid"><b>${esc(label)}</b><span data-st></span></div><ha-icon icon="${iR}"></ha-icon></div></div>`;
     const btn = (a, icon, word) => `<button class="btn" data-a="${a}" aria-label="${word}"><ha-icon icon="${icon}"></ha-icon>${word}</button>`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card class="${this._open ? 'open' : ''}" style="--ac:${ac.join(',')}">
       <div class="head">
@@ -1941,7 +1944,7 @@ class OneStopRollerShadeCard extends HTMLElement {
           ${c.humidity ? `<div class="chip h" data-h><ha-icon icon="mdi:water-percent"></ha-icon><span></span></div>` : ''}</div>` : ''}
       </div>
       ${bar(c.entity, c.bar_name || 'All shades')}
-      ${c.show_buttons ? `<div class="btns">${btn('close', 'mdi:arrow-collapse-down', 'Close')}${c.show_stop ? btn('stop', 'mdi:pause', 'Stop') : ''}${btn('open', 'mdi:arrow-collapse-up', 'Open')}</div>` : ''}
+      ${c.show_buttons ? `<div class="btns">${(rev ? ['open', 'stop', 'close'] : ['close', 'stop', 'open']).filter(a => a !== 'stop' || c.show_stop).map(a => btn(a, { open: 'mdi:arrow-collapse-up', stop: 'mdi:pause', close: 'mdi:arrow-collapse-down' }[a], { open: 'Open', stop: 'Stop', close: 'Close' }[a])).join('')}</div>` : ''}
       ${shades.length ? `<div class="more"><div><div class="sub">Individual shades</div>${shades.map(e => bar(e, h.states[e]?.attributes?.friendly_name || e)).join('')}</div></div>` : ''}
     </ha-card>`;
     const R = this.shadowRoot;
@@ -1960,7 +1963,7 @@ class OneStopRollerShadeCard extends HTMLElement {
 
   _wireBar(el) {
     const id = el.dataset.bar; let start = null;
-    const at = e => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 100))); };
+    const at = e => { const r = el.getBoundingClientRect(); const x = Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 100))); return this._cfg.right_closes !== false ? 100 - x : x; };
     el.addEventListener('pointerdown', e => {
       if (e.button) return; start = { x: e.clientX, y: e.clientY, moved: false }; el.setPointerCapture(e.pointerId);
     });
@@ -1980,7 +1983,7 @@ class OneStopRollerShadeCard extends HTMLElement {
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', () => { start = null; el.classList.remove('drag'); this._update(); });
   }
   _show(el, p, st, target) {
-    el.style.setProperty('--p', `${p ?? 0}%`); el.style.setProperty('--hem', p > 2 && p < 100 ? 1 : 0);
+    el.style.setProperty('--p', `${this._cfg.right_closes !== false ? 100 - (p ?? 0) : (p ?? 0)}%`); el.style.setProperty('--hem', p > 2 && p < 100 ? 1 : 0);
     el.classList.toggle('dead', dead(st));
     const s = el.querySelector('[data-st]');
     if (s) s.textContent = target ? `${p === 0 ? 'Close' : p === 100 ? 'Open fully' : 'Move to ' + p + '%'}` : (this._cfg.show_percent ? status(st, p) : status(st, p).replace(/\d+% open/, 'Partly open'));
@@ -2015,7 +2018,7 @@ const LABELS = {
   entity: 'Main shade (or the group that moves them all)', name: 'Card title (leave empty to use the shade name)', icon: 'Icon',
   bar_name: 'Label on the main bar', shades: 'Individual shades (shown when you tap the title)',
   temperature: 'Temperature sensor', humidity: 'Humidity sensor', show_climate: 'Show temperature and humidity',
-  show_buttons: 'Show Close / Open buttons', show_stop: 'Show the Stop button', show_percent: 'Show exact position (e.g. 40% open)',
+  show_buttons: 'Show Close / Open buttons', show_stop: 'Show the Stop button', show_percent: 'Show exact position (e.g. 40% open)', right_closes: 'Drag right to close (off: drag right to open)',
   start_open: 'Show the individual shades when the page opens', haptics: 'Vibrate on press (phones)', accent_color: 'Accent colour',
 };
 const HELP = {
@@ -2050,7 +2053,7 @@ class OneStopRollerShadeCardEditor extends HTMLElement {
         { name: 'humidity', selector: { entity: { filter: { domain: 'sensor', device_class: 'humidity' } } } },
       ] },
       { type: 'expandable', name: '', title: 'Buttons and look', icon: 'mdi:palette-outline', schema: [
-        { name: 'show_buttons', selector: toggle }, { name: 'show_stop', selector: toggle }, { name: 'show_percent', selector: toggle },
+        { name: 'show_buttons', selector: toggle }, { name: 'show_stop', selector: toggle }, { name: 'show_percent', selector: toggle }, { name: 'right_closes', selector: toggle },
         { name: 'start_open', selector: toggle }, { name: 'haptics', selector: toggle }, { name: 'accent_color', selector: { color_rgb: {} } },
       ] },
     ];
