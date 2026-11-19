@@ -3204,7 +3204,7 @@ console.info(`%c ONE STOP %c Plex card ${VERSION} `, 'background:#375374;color:#
  */
 (() => {
 'use strict';
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -3228,7 +3228,7 @@ const DEFAULTS = {
   services: ['netflix', 'disney', 'prime', 'crave', 'appletv', 'paramount', 'hayu', 'youtube', 'cbc', 'telus'], default_service: 'netflix',
   show_tabs: true, show_search: true, show_recent: true, show_trending: true, show_shows: true, show_movies: true, show_new: true, row_count: 20,
   poster_size: 'medium', poster_shape: 'rounded', show_titles: true, use_brand_colour: true, confirm_open: true,
-  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true, auto_play: true, netflix_row: 'continue', profile_gate: true,
+  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true, auto_play: true, netflix_row: 'continue', profile_gate: true, netflix_home: true,
 };
 const ROOM_KEYS = ['type', 'room_name', 'apple_tv', 'remote', 'country', 'services', 'netflix_plan', 'paramount_plan', 'default_service'];
 
@@ -3500,6 +3500,11 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .gate .pf.last .av{border-color:rgba(255,255,255,.55)}
 .who{flex:none;width:44px;height:44px;border-radius:8px;overflow:hidden;display:grid;place-items:center;font-weight:800;font-size:18px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .who img{width:100%;height:100%;object-fit:cover}
+.wide{--ww:clamp(180px,46cqw,260px)}
+.wide .it{width:var(--ww)}
+.wide .ph{aspect-ratio:16/9;border-radius:8px}
+.wide .pb{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.3)}.wide .pb i{display:block;height:100%;background:#e50914}
+.hrow h2{font-size:calc(var(--title,20px) - 2px)}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
@@ -3569,7 +3574,7 @@ class OneStopStreamingCard extends HTMLElement {
       ? `${c.show_recent ? sec('recent', 'Recently played') : ''}<div class="apponly">${esc(S.name)} doesn’t share its catalogue, so it opens straight in the app.<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open ${esc(S.name)} on ${esc(room)}</button></div>`
       : `${c.show_search ? `<label class="search"><ha-icon icon="mdi:magnify"></ha-icon><input type="search" placeholder="Search ${esc(S.name)}" data-q enterkeyhint="search" value="${esc(this._q || '')}"></label>` : ''}
         <div data-results class="hide">${sec('results', 'Results')}</div>
-        <div data-rows>${c.show_recent ? sec('recent', 'Recently played') : ''}${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
+        ${this._homeMode() ? `<div data-home><div class="sec"><div class="empty">Loading your Netflix…</div></div></div>` : ''}<div data-rows class="${this._homeMode() ? 'hide' : ''}">${c.show_recent ? sec('recent', 'Recently played') : ''}${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
     if (this._gate && this._gateOn()) return this._buildGate(vars, tabs);
     this._gatePend = this._gatePend || !!(this._gate && this._svc === 'netflix' && c.profile_gate !== false && Recent.conn.netflix !== false);   // profiles not known yet on this device
     this._gate = false;
@@ -3609,7 +3614,31 @@ class OneStopStreamingCard extends HTMLElement {
     if (!this._warmed && this._hass) { this._warmed = true; const kind = this._cfg.netflix_row !== 'history' ? 'continue' : 'history';
       (async () => { for (const p of ps) { try { await Recent.account(this._hass, 'netflix', kind, p.guid); } catch (e) {} } })(); }
   }
-  async _loadRows(pkg) {
+  _homeMode() { return this._svc === 'netflix' && this._cfg.netflix_home !== false && !!this._hass?.services?.one_stop_netflix?.get_history && Recent.conn.netflix !== false; }
+  async _loadHome(pkg) {                             // the chosen profile's real Netflix home rows (My List, Top 10, Because you watched…)
+    const svc = this._svc, guid = Recent.profileOf('netflix') || Recent.act.netflix || '', key = 'home|' + guid;
+    const quick = Recent._ls()[key]; if (quick?.v?.length) this._paintHome(quick.v);
+    let rows = null;
+    try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: { service: 'netflix', kind: 'home', ...(guid ? { profile: guid } : {}) }, return_response: true });
+      rows = r?.response?.rows || []; } catch (e) { rows = null; }
+    if (this._svc !== svc) return;
+    if (rows?.length) { Recent._lsPut(key, { t: Date.now(), v: rows }); this._paintHome(rows); return; }
+    if (quick?.v?.length) return;
+    this.shadowRoot.querySelector('[data-home]')?.remove(); this.shadowRoot.querySelector('[data-rows]')?.classList.remove('hide');   // fall back to the catalogue rows
+    this._loadRows(pkg, true);
+  }
+  _paintHome(rows) {
+    const box = this.shadowRoot.querySelector('[data-home]'); if (!box) return;
+    const k = JSON.stringify(rows.map(r => [r.title, r.items.map(i => i.id + (i.image || '') + (i.progress ?? ''))])); if (box.dataset.k === k) return; box.dataset.k = k;
+    const sl = {}; box.querySelectorAll('.row').forEach((r, i) => sl[i] = r.scrollLeft);
+    this._home = rows;
+    box.innerHTML = rows.map((r, ri) => `<div class="sec hrow wide"><div class="sh"><h2>${esc(r.title)}</h2></div><div class="row">${r.items.map((x, ii) => `<button class="it" data-h="${ri}.${ii}" aria-label="${esc(x.title)}"><div class="ph">${x.image ? `<img loading="${ri < 3 ? 'eager' : 'lazy'}" decoding="async" src="${esc(x.image)}" alt="">` : ''}<div class="fb ${x.image ? 'hide' : ''}">${esc(x.title)}</div>${x.progress != null ? `<div class="pb"><i style="width:${Math.max(3, Math.min(100, +x.progress))}%"></i></div>` : ''}</div><div class="nm">${esc(x.title)}</div></button>`).join('')}</div></div>`).join('');
+    box.querySelectorAll('.row').forEach((r, i) => { if (sl[i]) r.scrollLeft = sl[i]; });
+    box.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
+    box.querySelectorAll('[data-h]').forEach(el => el.addEventListener('click', () => { const [a, b] = el.dataset.h.split('.').map(Number), x = this._home[a]?.items[b]; if (!x) return; this._buzz(); this._play(x.url, x.title); }));
+  }
+  async _loadRows(pkg, noHome) {
+    if (!noHome && this._homeMode()) return this._loadHome(pkg);
     const c = this._cfg, n = +c.row_count || 20, cc = c.country || 'CA', svc = this._svc;
     const fill = (k, p) => p.then(l => { if (this._svc === svc) this._fill(k, l); }).catch(e => { if (this._svc === svc) this._fill(k, null, e); });
     if (c.show_recent) this._loadRecent(pkg);
@@ -3800,8 +3829,9 @@ class OneStopStreamingCard extends HTMLElement {
   }
   async _search() {
     const R = this.shadowRoot, res = R.querySelector('[data-results]'), rows = R.querySelector('[data-rows]'); if (!res) return;
-    if (!this._q) { res.classList.add('hide'); rows.classList.remove('hide'); return; }
-    res.classList.remove('hide'); rows.classList.add('hide');
+    const home = R.querySelector('[data-home]'), main = home || rows;
+    if (!this._q) { res.classList.add('hide'); main.classList.remove('hide'); return; }
+    res.classList.remove('hide'); rows.classList.add('hide'); home?.classList.add('hide');
     const svc = this._svc, q = this._q; res.querySelector('[data-body]').innerHTML = '<div class="empty">Searching…</div>';
     try { const l = await JWQ.list(this._cfg.country || 'CA', this._pkg(svc), { search: q, first: 40 }); if (this._svc === svc && this._q === q) this._fill('results', l, null, true); }
     catch (e) { this._fill('results', null, e, true); }
@@ -3897,7 +3927,7 @@ const schema = d => {
     section('g_posters', 'Posters and opening', 'mdi:image-multiple-outline', [grid([
       { name: 'poster_size', selector: size4 },
       { name: 'poster_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
-      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle }, { name: 'auto_play', selector: toggle }, { name: 'profile_gate', selector: toggle }, { name: 'netflix_row', selector: { select: { mode: 'dropdown', options: [{ value: 'continue', label: 'Continue watching' }, { value: 'history', label: 'Everything watched' }] } } },
+      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle }, { name: 'auto_play', selector: toggle }, { name: 'profile_gate', selector: toggle }, { name: 'netflix_home', selector: toggle }, { name: 'netflix_row', selector: { select: { mode: 'dropdown', options: [{ value: 'continue', label: 'Continue watching' }, { value: 'history', label: 'Everything watched' }] } } },
     ])]),
     section('g_look', 'Look', 'mdi:palette-outline', [grid([
       { name: 'use_brand_colour', selector: toggle },
@@ -3915,7 +3945,7 @@ const LABELS = {
   room_name: 'Room name (shown on the card)', apple_tv: 'Apple TV', remote: 'Apple TV remote',
   country: 'Country (each country has a different catalogue)', services: 'Services this home subscribes to', netflix_plan: 'Netflix plan', paramount_plan: 'Paramount+ plan', default_service: 'Service shown first',
   show_tabs: 'Service buttons at the top', show_search: 'Search box', show_recent: 'Recently played', show_trending: 'Trending', show_new: 'New this week', show_shows: 'Popular shows', show_movies: 'Popular movies', row_count: 'Titles in each row',
-  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening', auto_play: 'Start playing automatically (presses Select for you)', netflix_row: 'Netflix row shows', profile_gate: 'Ask “Who’s watching?” when Netflix opens',
+  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening', auto_play: 'Start playing automatically (presses Select for you)', netflix_row: 'Netflix row shows', profile_gate: 'Ask “Who’s watching?” when Netflix opens', netflix_home: 'Show my real Netflix home rows (My List, Top 10, Because you watched…)',
   use_brand_colour: 'Tint the card in the service’s colour', off_background: 'Background', off_custom_color: 'Your background colour', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style', title_size: 'Title size', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
