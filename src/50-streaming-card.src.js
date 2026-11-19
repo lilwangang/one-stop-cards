@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.11.1';
+const VERSION = '1.11.2';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -364,6 +364,7 @@ class OneStopStreamingCard extends HTMLElement {
         <div data-results class="hide">${sec('results', 'Results')}</div>
         <div data-rows>${c.show_recent ? sec('recent', 'Recently played') : ''}${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
     if (this._gate && this._gateOn()) return this._buildGate(vars, tabs);
+    this._gatePend = !!(this._gate && this._svc === 'netflix' && c.profile_gate !== false && Recent.conn.netflix !== false);   // profiles not known yet on this device
     this._gate = false;
     const who = this._svc === 'netflix' && this._gateOn() ? this._whoBtn() : '';
     R.innerHTML = `<style>${CSS}</style><ha-card class="sz-${esc(c.poster_size)} ${c.show_titles ? '' : 'notitles'} ${c.use_brand_colour ? 'brand' : ''}" style="${vars}">${tabs}
@@ -421,6 +422,8 @@ class OneStopStreamingCard extends HTMLElement {
       const quick = Recent.cached(svc, kind);
       if (quick) { if (kind === 'continue') this._recentTitle('Continue watching'); paint(quick.slice(0, n)); }
       try { tv = await Recent.account(this._hass, svc, kind); if (tv && kind === 'continue') this._recentTitle('Continue watching'); } catch (e) { this._nfErr = e.message || String(e); }
+      if (this._gatePend && this._svc === svc && this._gateOn()) { this._gatePend = false; this._gate = true; return this._build(); }
+      this._gatePend = false;
       if (tv && !tv.length && kind === 'continue') { try { const h = await Recent.account(this._hass, svc, 'history'); if (h?.length) { tv = h; this._recentTitle('Recently watched'); } } catch (e) {} }   // e.g. Kids profiles have no Continue watching row
       if (!tv && quick) return;
     }
