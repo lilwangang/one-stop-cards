@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.11.3';
+const VERSION = '1.12.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -192,12 +192,20 @@ const Recent = {
     return v;
   },
   _match: new Map(),
-  async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
+  _art: null,
+  art() { if (!this._art) { try { this._art = JSON.parse(localStorage.getItem('one-stop-poster-cache') || '{}') || {}; } catch (e) { this._art = {}; } } return this._art; },
+  known(cc, pkg, title) { const a = this.art()[cc + '|' + pkg + '|' + title.toLowerCase()]; return a && (a.id || Date.now() - a.t < 864e5) ? a : null; },   // misses retried after a day
+  _saveArt() { clearTimeout(this._artT); this._artT = setTimeout(() => { try { const a = this.art(), ks = Object.keys(a); if (ks.length > 600) ks.sort((x, y) => a[x].t - a[y].t).slice(0, ks.length - 600).forEach(k => delete a[k]); localStorage.setItem('one-stop-poster-cache', JSON.stringify(a)); } catch (e) {} }, 300); },
+  async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported (remembered on this device)
     const k = cc + pkg + title.toLowerCase(); if (this._match.has(k)) return this._match.get(k);
-    let hit = null;
-    try { const l = await JWQ.list(cc, pkg, { search: title, first: 5 }), n = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      hit = l.find(x => n(x.content?.title) === n(title)) || null; } catch (e) {}
-    this._match.set(k, hit); return hit;
+    const job = (async () => {
+      let hit = null, ok = false;
+      try { const l = await JWQ.list(cc, pkg, { search: title, first: 5 }), n = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        hit = l.find(x => n(x.content?.title) === n(title)) || null; ok = true; } catch (e) {}
+      if (ok) { this.art()[cc + '|' + pkg + '|' + title.toLowerCase()] = hit ? { id: hit.id, p: hit.content?.posterUrl, y: hit.content?.originalReleaseYear, o: hit.objectType, t: Date.now() } : { t: Date.now() }; this._saveArt(); }
+      return hit;
+    })();
+    this._match.set(k, job); return job;
   },
 };
 const ago = ts => { const m = Math.round((Date.now() - ts) / 60000); if (m < 60) return m <= 1 ? 'Just now' : `${m} min ago`; const h = Math.round(m / 60); if (h < 24) return `${h} h ago`; const d = Math.round(h / 24); return d === 1 ? 'Yesterday' : `${d} days ago`; };
@@ -414,7 +422,8 @@ class OneStopStreamingCard extends HTMLElement {
   _recentTitle(t) { const h = this.shadowRoot?.querySelector('[data-sec="recent"] h2'); if (h && h.textContent !== t) h.textContent = t; }
   async _loadRecent(pkg) {
     const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
-    const paint = list => { if (this._svc !== svc) return; const k = JSON.stringify(list.map(x => [x.t, x.ep, x.p, x.img, x.progress])); if (k === this._recentKey && this.shadowRoot.querySelector('[data-sec="recent"] [data-ri]')) return; this._recentKey = k; this._fillRecent(list); };
+    const withArt = list => { if (pkg) for (const x of list) { if (!x.img && x.image) x.img = x.image; if (!x.p && x.t) { const a = Recent.known(cc, pkg, x.t); if (a?.id) { x.id = a.id; x.p = a.p; x.y = a.y; x.o = a.o; } } } return list; };
+    const paint = list => { if (this._svc !== svc) return; withArt(list); const k = JSON.stringify(list.map(x => [x.t, x.ep, x.p, x.img, x.progress])); if (k === this._recentKey && this.shadowRoot.querySelector('[data-sec="recent"] [data-ri]')) return; this._recentKey = k; this._fillRecent(list); };
     let saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
     let tv = null;
     const kind = svc === 'netflix' && this._cfg.netflix_row !== 'history' ? 'continue' : 'history';
@@ -437,12 +446,15 @@ class OneStopStreamingCard extends HTMLElement {
     let all = [...saved, ...fromTv].sort((a, b) => b.ts - a.ts).slice(0, n);
     paint(all);
     if (!pkg) return;
-    for (const x of all.filter(y => y.src === 'tv')) {           // add posters for what the TV reported
+    // add posters for what the TV/account reported: all at once (6 in flight), each appears as soon as it's found
+    const todo = all.filter(y => y.src === 'tv' && !y.p && !Recent.known(cc, pkg, y.t)); let pt = null;
+    const repaint = () => { if (pt) return; pt = setTimeout(() => { pt = null; this._recentKey = null; paint(all); }, 120); };
+    const work = async () => { for (let x; (x = todo.shift());) {
       const hit = await Recent.resolve(cc, pkg, x.t); if (this._svc !== svc) return;
       if (!hit && x.url) { x.o = x.o || 'SHOW'; }
-      if (hit) { x.id = hit.id; x.p = hit.content?.posterUrl; x.y = hit.content?.originalReleaseYear; x.o = hit.objectType; this._items = this._items || new Map(); this._items.set(hit.id, hit); }
-    }
-    paint(all);
+      if (hit) { x.id = hit.id; x.p = hit.content?.posterUrl; x.y = hit.content?.originalReleaseYear; x.o = hit.objectType; this._items = this._items || new Map(); this._items.set(hit.id, hit); repaint(); }
+    } };
+    await Promise.all(Array.from({ length: Math.min(6, todo.length) }, work));
   }
   _fillRecent(list) {
     const s = this.shadowRoot.querySelector('[data-sec="recent"]'); if (!s) return;
@@ -457,9 +469,11 @@ class OneStopStreamingCard extends HTMLElement {
     if (!list.length) { this._nfChips(s); b.innerHTML = `<div class="empty">Nothing yet. Titles you open here, and anything the Apple TV reports playing in ${esc(SERVICES[this._svc].name)}, will show up here.</div>`; s.querySelector('[data-ct]').textContent = ''; return; }
     this._recent = list;
     this._nfChips(s);
+    const sl = b.querySelector('.row')?.scrollLeft || 0;
     b.innerHTML = `<div class="row">${list.map((x, i) => { const src = poster(x.p) || x.img || '';
       return `<button class="it" data-ri="${i}" aria-label="${esc(x.t)}"><div class="ph">${src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="">` : ''}<div class="fb ${src ? 'hide' : ''}">${esc(x.t)}</div><span class="badge">${esc(x.nodate ? 'In progress' : ago(x.ts))}</span></div><div class="nm">${esc(x.t)}</div><div class="sb">${esc(x.ep || x.room || (x.o === 'SHOW' ? 'Series' : x.y ? 'Movie · ' + x.y : ''))}</div></button>`; }).join('')}</div>`;
     s.querySelector('[data-ct]').textContent = String(list.length);
+    if (sl) b.querySelector('.row').scrollLeft = sl;
     b.querySelectorAll('img').forEach(i => i.addEventListener('error', () => { i.parentElement?.querySelector('.fb')?.classList.remove('hide'); i.remove(); }, { once: true }));
     b.querySelectorAll('[data-ri]').forEach(el => el.addEventListener('click', () => {
       const x = this._recent[+el.dataset.ri]; const full = x.id && this._items?.get(x.id);
