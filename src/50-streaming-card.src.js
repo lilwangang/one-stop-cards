@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.11.0';
+const VERSION = '1.11.1';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -421,6 +421,7 @@ class OneStopStreamingCard extends HTMLElement {
       const quick = Recent.cached(svc, kind);
       if (quick) { if (kind === 'continue') this._recentTitle('Continue watching'); paint(quick.slice(0, n)); }
       try { tv = await Recent.account(this._hass, svc, kind); if (tv && kind === 'continue') this._recentTitle('Continue watching'); } catch (e) { this._nfErr = e.message || String(e); }
+      if (tv && !tv.length && kind === 'continue') { try { const h = await Recent.account(this._hass, svc, 'history'); if (h?.length) { tv = h; this._recentTitle('Recently watched'); } } catch (e) {} }   // e.g. Kids profiles have no Continue watching row
       if (!tv && quick) return;
     }
     if (tv) saved = [];                   // connected: show exactly what the chosen profile watched
