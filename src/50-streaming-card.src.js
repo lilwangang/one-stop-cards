@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.13.0';
+const VERSION = '1.13.1';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -421,8 +421,11 @@ class OneStopStreamingCard extends HTMLElement {
     const quick = Recent._ls()[key]; if (quick?.v?.length) this._paintHome(quick.v);
     let rows = null;
     try { const r = await this._hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: { service: 'netflix', kind: 'home', ...(guid ? { profile: guid } : {}) }, return_response: true });
-      rows = r?.response?.rows || []; } catch (e) { rows = null; }
+      rows = r?.response?.rows || []; const res = r?.response || {};
+      if (res.profiles?.length) { Recent.prof.netflix = res.profiles; Recent.conn.netflix = true; Recent.act.netflix = Recent.act.netflix || res.profile; Recent._lsPut('p|netflix', { profiles: res.profiles, active: Recent.act.netflix }); } } catch (e) { rows = null; }
     if (this._svc !== svc) return;
+    if (this._gatePend && this._gateOn()) { this._gatePend = false; this._gate = true; return this._build(); }
+    this._gatePend = false;
     if (rows?.length) { Recent._lsPut(key, { t: Date.now(), v: rows }); this._paintHome(rows); return; }
     if (quick?.v?.length) return;
     this.shadowRoot.querySelector('[data-home]')?.remove(); this.shadowRoot.querySelector('[data-rows]')?.classList.remove('hide');   // fall back to the catalogue rows
