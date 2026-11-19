@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const TAG = 'one-stop-streaming-card';
 const EDITOR_TAG = TAG + '-editor';
 const SECTION = 'streaming', STYLE_DASH = 'one-stop-cards';
@@ -29,7 +29,7 @@ const DEFAULTS = {
   services: ['netflix', 'disney', 'prime', 'crave', 'appletv', 'paramount', 'hayu', 'youtube', 'cbc', 'telus'], default_service: 'netflix',
   show_tabs: true, show_search: true, show_recent: true, show_trending: true, show_shows: true, show_movies: true, show_new: true, row_count: 20,
   poster_size: 'medium', poster_shape: 'rounded', show_titles: true, use_brand_colour: true, confirm_open: true,
-  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true, auto_play: true, netflix_row: 'continue',
+  card_spacing: 'standard', corners: 'rounded', font: 'classic', title_size: 'medium', off_background: 'theme', off_custom_color: [40, 44, 52], haptics: true, auto_play: true, netflix_row: 'continue', profile_gate: true,
 };
 const ROOM_KEYS = ['type', 'room_name', 'apple_tv', 'remote', 'country', 'services', 'netflix_plan', 'paramount_plan', 'default_service'];
 
@@ -168,17 +168,28 @@ const Recent = {
   profileOf(svc) { try { return localStorage.getItem(this.pKey(svc)) || ''; } catch (e) { return ''; } },
   setProfile(svc, g) { try { localStorage.setItem(this.pKey(svc), g); } catch (e) {} },
   forget(svc) { for (const k of Object.keys(this._acc)) if (k.startsWith(svc + '|')) delete this._acc[k]; delete this.conn[svc]; },
-  async account(hass, svc, kind = 'history') {                          // the service's own account history (null = not connected)
+  _ls() { try { return JSON.parse(localStorage.getItem('one-stop-acct-cache') || '{}') || {}; } catch (e) { return {}; } },
+  _lsPut(k, v) { try { const c = this._ls(); c[k] = v; localStorage.setItem('one-stop-acct-cache', JSON.stringify(c)); } catch (e) {} },
+  cached(svc, kind) {                               // last list this phone saw for the chosen profile (instant paint)
+    const c = this._ls(), want = this.profileOf(svc), p = c['p|' + svc];
+    if (p && !this.prof[svc]?.length) { this.prof[svc] = p.profiles || []; this.act[svc] = this.act[svc] || p.active; this.conn[svc] = true; }
+    const hit = c[svc + '|' + (want || (p && p.active) || '') + '|' + kind]; return hit ? hit.v : null;
+  },
+  profilesOf(svc) { if (!this.prof[svc]?.length) this.cached(svc, 'continue'); return this.prof[svc] || []; },
+  async account(hass, svc, kind = 'history', prof) {                   // the service's own account history (null = not connected)
     if (!ACCT[svc] || !hass?.services?.one_stop_netflix?.get_history) { this.conn[svc] = false; return null; }
-    const want = this.profileOf(svc), key = svc + '|' + want + '|' + kind, hit = this._acc[key];
-    if (hit && Date.now() - hit.t < 120000) return hit.v;
+    const want = prof ?? this.profileOf(svc), key = svc + '|' + want + '|' + kind, hit = this._acc[key];
+    if (hit && Date.now() - hit.t < 60000) return hit.v;
     const data = { limit: 40, service: svc, kind }; if (want) data.profile = want;
     const r = await hass.callWS({ type: 'call_service', domain: 'one_stop_netflix', service: 'get_history', service_data: data, return_response: true });
     const res = r?.response || {};
     if (res.connected === false) { this.conn[svc] = false; return null; }
-    this.conn[svc] = true; this.prof[svc] = res.profiles || []; this.act[svc] = res.profile || want;
+    this.conn[svc] = true; this.prof[svc] = res.profiles || []; if (prof === undefined) this.act[svc] = res.profile || want;
     const v = (res.items || []).map(x => ({ ...x, src: 'acct', room: '' }));
-    this._acc[key] = { t: Date.now(), v }; return v;
+    this._acc[key] = { t: Date.now(), v };
+    this._lsPut('p|' + svc, { profiles: this.prof[svc], active: this.act[svc] || res.profile });
+    this._lsPut(svc + '|' + (want || res.profile || '') + '|' + kind, { t: Date.now(), v: v.slice(0, 40) });
+    return v;
   },
   _match: new Map(),
   async resolve(cc, pkg, title) {                   // find the JustWatch title for something the TV reported
@@ -268,6 +279,20 @@ button:active:not([disabled]){transform:scale(.96)} button[disabled]{opacity:.4;
 .nfc .lnk{font-size:13px;opacity:.75;text-align:center;padding:4px}
 .nfc .err{font-size:13px;color:#ffb4b4}.nfc .pf{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
 .nfc .pf button{height:48px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:600}
+.gate{display:flex;flex-direction:column;align-items:center;padding:18px 4px 26px;animation:gfade .25s ease-out}
+@keyframes gfade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+.gate .nlogo{font:900 30px/1 'Bebas Neue',Impact,'Arial Black',sans-serif;letter-spacing:1px;color:#e50914;margin-bottom:22px}
+.gate h2{margin:0 0 22px;font-size:22px;font-weight:600;letter-spacing:-.2px}
+.gate .pg{display:grid;grid-template-columns:repeat(2,minmax(0,128px));gap:22px 26px;justify-content:center}
+@container oss (min-width:560px){.gate .pg{grid-template-columns:repeat(auto-fit,minmax(0,128px))}}
+.gate .pf{display:flex;flex-direction:column;align-items:center;gap:10px;font-size:15px;font-weight:500;opacity:.92}
+.gate .av{width:112px;height:112px;border-radius:10px;overflow:hidden;display:grid;place-items:center;font-size:46px;font-weight:800;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.35);border:2px solid transparent;transition:border-color .15s,transform .15s}
+.gate .av img{width:100%;height:100%;object-fit:cover;display:block}
+.gate .pf:hover .av,.gate .pf:focus-visible .av{border-color:#fff}
+.gate .pf:active .av{transform:scale(.95)}
+.gate .pf.last .av{border-color:rgba(255,255,255,.55)}
+.who{flex:none;width:44px;height:44px;border-radius:8px;overflow:hidden;display:grid;place-items:center;font-weight:800;font-size:18px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.who img{width:100%;height:100%;object-fit:cover}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
@@ -286,14 +311,21 @@ const nowPlayingFor = (hass, ids) => {        // One Stop 'now playing' sensors 
 class OneStopStreamingCard extends HTMLElement {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig(hass) { const atv = Object.keys(hass?.states || {}).find(e => e.startsWith('media_player.') && hass.entities?.[e]?.platform === 'apple_tv'); return { apple_tv: atv, remote: atv ? atv.replace('media_player.', 'remote.') : undefined }; }
-  setConfig(config) { if (!config) throw new Error('Invalid configuration'); this._raw = { ...config }; this._merge(); if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._built = false; if (this._hass) this._build(); }
+  setConfig(config) { if (!config) throw new Error('Invalid configuration'); if (this._gate === undefined) this._gate = true; this._raw = { ...config }; this._merge(); if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._built = false; if (this._hass) this._build(); }
   _merge() { Shared._readCache(); this._cfg = { ...DEFAULTS, ...((Shared.data || {})[SECTION] || {}), ...this._raw }; }
+  _gateOn() { return this._svc === 'netflix' && this._cfg.profile_gate !== false && Recent.profilesOf('netflix').length > 1; }
+  _arm() { this._gate = true; if (this._built && this._gateOn()) this._build(); }
   connectedCallback() {
+    if (!this._io && window.IntersectionObserver) {      // show "Who's watching?" each time the card is opened, like the Netflix app
+      this._io = new IntersectionObserver(es => { for (const e of es) { if (e.isIntersecting) { if (this._hiddenAt && Date.now() - this._hiddenAt > 20000) this._arm(); this._hiddenAt = 0; } else if (!this._hiddenAt) this._hiddenAt = Date.now(); } });
+      this._io.observe(this);
+    }
+    if (this._wasOff) this._arm(); this._wasOff = false;
     this._onShared = () => { this._merge(); this._built = false; if (this._hass) this._build(); }; Shared.listeners.add(this._onShared);
     this._onLoc = () => { const s = this._urlService(); if (s && s !== this._svc) { this._svc = s; this._q = ''; if (this._hass) this._build(); } };
     window.addEventListener('location-changed', this._onLoc); window.addEventListener('popstate', this._onLoc);
   }
-  disconnectedCallback() { Shared.listeners.delete(this._onShared); window.removeEventListener('location-changed', this._onLoc); window.removeEventListener('popstate', this._onLoc); }
+  disconnectedCallback() { this._wasOff = true; Shared.listeners.delete(this._onShared); window.removeEventListener('location-changed', this._onLoc); window.removeEventListener('popstate', this._onLoc); }
   set hass(hass) { const first = !this._hass; this._hass = hass; JWQ.hass = hass; if (first) Shared.get(hass); if (!this._built) this._build(); else this._np(); }
   _np() {                                          // 'Now playing on <room>' for apps that don't tell the TV (Netflix)
     const card = this.shadowRoot?.querySelector('ha-card'), hero = card?.querySelector('.hero'); if (!hero) return;
@@ -331,14 +363,43 @@ class OneStopStreamingCard extends HTMLElement {
       : `${c.show_search ? `<label class="search"><ha-icon icon="mdi:magnify"></ha-icon><input type="search" placeholder="Search ${esc(S.name)}" data-q enterkeyhint="search" value="${esc(this._q || '')}"></label>` : ''}
         <div data-results class="hide">${sec('results', 'Results')}</div>
         <div data-rows>${c.show_recent ? sec('recent', 'Recently played') : ''}${c.show_trending ? sec('trending', `Trending on ${S.name}`) : ''}${c.show_new ? sec('new', `New on ${S.name}`) : ''}${c.show_shows ? sec('shows', 'Popular shows') : ''}${c.show_movies ? sec('movies', 'Popular movies') : ''}</div>`;
+    if (this._gate && this._gateOn()) return this._buildGate(vars, tabs);
+    this._gate = false;
+    const who = this._svc === 'netflix' && this._gateOn() ? this._whoBtn() : '';
     R.innerHTML = `<style>${CSS}</style><ha-card class="sz-${esc(c.poster_size)} ${c.show_titles ? '' : 'notitles'} ${c.use_brand_colour ? 'brand' : ''}" style="${vars}">${tabs}
-      <div class="hero"><h1>${esc(S.name)}<span class="sub">${esc([room, planWord].filter(Boolean).join(' · '))}</span></h1>${pkg ? `<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open app</button>` : ''}</div>${body}</ha-card>`;
+      <div class="hero"><h1>${esc(S.name)}<span class="sub">${esc([room, planWord].filter(Boolean).join(' · '))}</span></h1>${who}${pkg ? `<button class="openapp" data-open><ha-icon icon="mdi:open-in-app"></ha-icon>Open app</button>` : ''}</div>${body}</ha-card>`;
     this._built = true;
     this._np();
     R.querySelectorAll('[data-svc]').forEach(b => b.addEventListener('click', () => { this._buzz(); this._svc = b.dataset.svc; this._q = ''; this._build(); }));
     R.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => this._openApp()));
+    R.querySelector('[data-who]')?.addEventListener('click', () => { this._buzz(); this._gate = true; this._build(); });
     const q = R.querySelector('[data-q]'); if (q) q.addEventListener('input', () => { clearTimeout(this._qt); this._qt = setTimeout(() => { this._q = q.value.trim(); this._search(); }, 350); });
     if (pkg) { this._loadRows(pkg); if (this._q) this._search(); } else if (c.show_recent) this._loadRecent(null);
+  }
+  _avatar(p, i) {
+    const cols = ['229,9,20', '0,113,235', '230,176,0', '0,160,90', '140,60,210'];
+    return p.avatar ? `<img src="${esc(p.avatar)}" alt="" referrerpolicy="no-referrer" data-fb="${esc((p.name || '?')[0].toUpperCase())}">` : `<span style="display:contents">${esc((p.name || '?')[0].toUpperCase())}</span>`;
+  }
+  _avBg(i) { return ['rgb(229,9,20)', 'rgb(0,113,235)', 'rgb(230,176,0)', 'rgb(0,160,90)', 'rgb(140,60,210)'][i % 5]; }
+  _whoBtn() {
+    const ps = Recent.profilesOf('netflix'), on = Recent.profileOf('netflix') || Recent.act.netflix, i = Math.max(0, ps.findIndex(p => p.guid === on)), p = ps[i] || {};
+    return `<button class="who" data-who aria-label="Switch profile (${esc(p.name || '')})" title="Switch profile" style="background:${this._avBg(i)}">${this._avatar(p, i)}</button>`;
+  }
+  _buildGate(vars, tabs) {
+    const R = this.shadowRoot, c = this._cfg, ps = Recent.profilesOf('netflix'), last = Recent.profileOf('netflix') || Recent.act.netflix;
+    R.innerHTML = `<style>${CSS}</style><ha-card class="${c.use_brand_colour ? 'brand' : ''}" style="${vars}">${tabs}<div class="gate"><div class="nlogo">NETFLIX</div><h2>Who’s watching?</h2>
+      <div class="pg">${ps.map((p, i) => `<button class="pf ${p.guid === last ? 'last' : ''}" data-pg="${esc(p.guid)}"><span class="av" style="background:${this._avBg(i)}">${this._avatar(p, i)}</span>${esc(p.name)}</button>`).join('')}</div></div></ha-card>`;
+    this._built = true;
+    R.querySelectorAll('[data-svc]').forEach(b => b.addEventListener('click', () => { this._buzz(); this._svc = b.dataset.svc; this._q = ''; this._build(); }));
+    R.querySelectorAll('img[data-fb]').forEach(im => im.addEventListener('error', () => { const s = document.createElement('span'); s.textContent = im.dataset.fb; im.replaceWith(s); }, { once: true }));
+    R.querySelectorAll('[data-pg]').forEach(b => b.addEventListener('click', () => {
+      this._buzz(); const g = b.dataset.pg;
+      if (g !== (Recent.profileOf('netflix') || Recent.act.netflix)) { Recent.setProfile('netflix', g); this._recentKey = null; }
+      this._gate = false; this._build();
+    }));
+    // warm every profile's row while they choose
+    if (!this._warmed && this._hass) { this._warmed = true; const kind = this._cfg.netflix_row !== 'history' ? 'continue' : 'history';
+      (async () => { for (const p of ps) { try { await Recent.account(this._hass, 'netflix', kind, p.guid); } catch (e) {} } })(); }
   }
   async _loadRows(pkg) {
     const c = this._cfg, n = +c.row_count || 20, cc = c.country || 'CA', svc = this._svc;
@@ -352,11 +413,16 @@ class OneStopStreamingCard extends HTMLElement {
   _recentTitle(t) { const h = this.shadowRoot?.querySelector('[data-sec="recent"] h2'); if (h && h.textContent !== t) h.textContent = t; }
   async _loadRecent(pkg) {
     const svc = this._svc, S = SERVICES[svc], cc = this._cfg.country || 'CA', n = +this._cfg.row_count || 20;
-    const paint = list => { if (this._svc !== svc) return; this._fillRecent(list); };
+    const paint = list => { if (this._svc !== svc) return; const k = JSON.stringify(list.map(x => [x.t, x.ep, x.p, x.img, x.progress])); if (k === this._recentKey && this.shadowRoot.querySelector('[data-sec="recent"] [data-ri]')) return; this._recentKey = k; this._fillRecent(list); };
     let saved = Recent.saved(svc).map(x => ({ ...x, src: 'card' }));
     let tv = null;
     const kind = svc === 'netflix' && this._cfg.netflix_row !== 'history' ? 'continue' : 'history';
-    if (ACCT[svc]) { try { tv = await Recent.account(this._hass, svc, kind); if (tv && kind === 'continue') this._recentTitle('Continue watching'); } catch (e) { this._nfErr = e.message || String(e); } }
+    if (ACCT[svc]) {
+      const quick = Recent.cached(svc, kind);
+      if (quick) { if (kind === 'continue') this._recentTitle('Continue watching'); paint(quick.slice(0, n)); }
+      try { tv = await Recent.account(this._hass, svc, kind); if (tv && kind === 'continue') this._recentTitle('Continue watching'); } catch (e) { this._nfErr = e.message || String(e); }
+      if (!tv && quick) return;
+    }
     if (tv) saved = [];                   // connected: show exactly what the chosen profile watched
     else {
       paint(saved.sort((a, b) => b.ts - a.ts).slice(0, n));
@@ -402,7 +468,7 @@ class OneStopStreamingCard extends HTMLElement {
   _nfChips(s) {                                   // "Whose history?" profile buttons (remembered on this phone/tablet)
     let bar = s.querySelector('[data-nfp]');
     const svc = this._svc, ps = ACCT[svc] ? (Recent.prof[svc] || []) : [];
-    if (ps.length < 2) { bar?.remove(); return; }
+    if (ps.length < 2 || this._gateOn()) { bar?.remove(); return; }
     if (!bar) { bar = document.createElement('div'); bar.dataset.nfp = ''; bar.className = 'nfp'; s.insertBefore(bar, s.querySelector('[data-body]')); }
     const on = Recent.profileOf(svc) || Recent.act[svc];
     bar.innerHTML = ps.map(p => `<button class="${p.guid === on ? 'on' : ''}" data-g="${esc(p.guid)}"><span>${esc((p.name || '?')[0].toUpperCase())}</span>${esc(p.name)}</button>`).join('');
@@ -614,7 +680,7 @@ const schema = d => {
     section('g_posters', 'Posters and opening', 'mdi:image-multiple-outline', [grid([
       { name: 'poster_size', selector: size4 },
       { name: 'poster_shape', selector: sel([['square', 'Square corners'], ['rounded', 'Rounded'], ['extra_round', 'Extra round']]) },
-      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle }, { name: 'auto_play', selector: toggle }, { name: 'netflix_row', selector: { select: { mode: 'dropdown', options: [{ value: 'continue', label: 'Continue watching' }, { value: 'history', label: 'Everything watched' }] } } },
+      { name: 'show_titles', selector: toggle }, { name: 'confirm_open', selector: toggle }, { name: 'auto_play', selector: toggle }, { name: 'profile_gate', selector: toggle }, { name: 'netflix_row', selector: { select: { mode: 'dropdown', options: [{ value: 'continue', label: 'Continue watching' }, { value: 'history', label: 'Everything watched' }] } } },
     ])]),
     section('g_look', 'Look', 'mdi:palette-outline', [grid([
       { name: 'use_brand_colour', selector: toggle },
@@ -632,7 +698,7 @@ const LABELS = {
   room_name: 'Room name (shown on the card)', apple_tv: 'Apple TV', remote: 'Apple TV remote',
   country: 'Country (each country has a different catalogue)', services: 'Services this home subscribes to', netflix_plan: 'Netflix plan', paramount_plan: 'Paramount+ plan', default_service: 'Service shown first',
   show_tabs: 'Service buttons at the top', show_search: 'Search box', show_recent: 'Recently played', show_trending: 'Trending', show_new: 'New this week', show_shows: 'Popular shows', show_movies: 'Popular movies', row_count: 'Titles in each row',
-  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening', auto_play: 'Start playing automatically (presses Select for you)', netflix_row: 'Netflix row shows',
+  poster_size: 'Poster size', poster_shape: 'Poster corners', show_titles: 'Names under posters', confirm_open: 'Show a pop-up before opening', auto_play: 'Start playing automatically (presses Select for you)', netflix_row: 'Netflix row shows', profile_gate: 'Ask “Who’s watching?” when Netflix opens',
   use_brand_colour: 'Tint the card in the service’s colour', off_background: 'Background', off_custom_color: 'Your background colour', card_spacing: 'Spacing inside the card', corners: 'Card corners', font: 'Lettering style', title_size: 'Title size', haptics: 'Vibrate on press (phones)',
 };
 const HELPERS = {
