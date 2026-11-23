@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2160,7 +2160,7 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .s.pair:not(.wide){grid-row:span 2}
 .grid{grid-auto-flow:row dense}
 .s .lh{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}.s .lh>span{white-space:nowrap;flex:none}
-.s .lv{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:14.5px;font-weight:700;color:rgb(var(--sc))}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
+.s .lv{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:var(--cap,14.5px);font-weight:700;color:rgb(var(--sc))}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
 .s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
 .s.pair .hd b{font-size:15.5px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2246,7 +2246,7 @@ class OneStopVehicleCard extends HTMLElement {
     });
     if (open) grid += '</div>';
     this._allActs = [...prim, ...acts];
-    R.innerHTML = `<style>${CSS}</style><ha-card>
+    R.innerHTML = `<style>${CSS}</style><ha-card style="${c.caption_size ? `--cap:${+c.caption_size}px` : ''}">
       <div class="top"><h2>${esc(c.name || 'My vehicle')}</h2>${c.show_updated ? '<div class="upd" data-upd></div>' : ''}</div>
       ${img ? `<div class="hero"><img class="pic" src="${esc(img)}" alt=""></div>` : ''}
       ${prim.map((a, i) => `<button class="primary" data-a="${i}" style="--ac:${COLORS[a.color] || COLORS.blue}"><ha-icon icon="${esc(a.icon || iconFor(a.entity))}"></ha-icon>${esc(a.name || '')}<small data-as="${i}" hidden></small></button>`).join('')}
@@ -2320,11 +2320,20 @@ class OneStopVehicleCard extends HTMLElement {
       for (const k of ['wait', 'ok', 'fail']) btn.classList.toggle(k, !!(r && r.fresh && r.kind === k));
     });
     this._status();
+    this._fit();
     const upd = R.querySelector('[data-upd]');
     if (upd) { const ent = c.updated_entity && h.states[c.updated_entity]; const t = ent ? (Date.parse(ent.state) ? ent.state : ent.last_changed) : null; upd.textContent = t ? `Updated ${ago(t)}` : ''; }
     const sw = R.querySelector('[data-sw]'); if (sw) sw.classList.toggle('on', h.states[c.schedule_switch]?.state === 'on');
     const tm = R.querySelector('[data-stv]'); if (tm) { const st = h.states[c.schedule_time], on = !c.schedule_switch || h.states[c.schedule_switch]?.state === 'on'; tm.textContent = (dead(st) ? '—' : this._time(st)) + (on ? '' : ' · off'); tm.style.opacity = on ? 1 : .55; }
   }
+  _fit() {   // captions as big as the setting allows, all the same size, none cut off
+    const max = +this._cfg.caption_size || 14.5, els = [...this.shadowRoot.querySelectorAll('.lv')]; if (!els.length) return;
+    const key = els.map(e => e.textContent + e.clientWidth).join('|') + max; if (this._fk === key) return; this._fk = key;
+    let size = max; const over = () => els.some(e => e.scrollWidth > e.clientWidth + 0.5);
+    els.forEach(e => (e.style.fontSize = size + 'px'));
+    while (size > 11 && over()) { size -= 0.5; els.forEach(e => (e.style.fontSize = size + 'px')); }
+  }
+  connectedCallback() { if (this._built) this._tick(); if (!this._ro && window.ResizeObserver) { this._ro = new ResizeObserver(() => { this._fk = ''; this._fit(); }); this._ro.observe(this); } }
   _time(st) {
     const [H, M] = String(st.state).split(':').map(Number); if (!Number.isFinite(H)) return st.state;
     return new Date(2000, 0, 1, H, M).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -2407,7 +2416,6 @@ class OneStopVehicleCard extends HTMLElement {
     box.querySelector('[data-x]')?.addEventListener('click', () => { this._dismissed = Date.now(); box.innerHTML = ''; box.dataset.k = ''; });
   }
   _tick() { clearInterval(this._iv); this._iv = setInterval(() => { if (!this.isConnected) return clearInterval(this._iv); this._update(); }, 1000); }
-  connectedCallback() { if (this._built) this._tick(); }
   disconnectedCallback() { clearInterval(this._iv); }
   _more(id) { if (id) this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true })); }
   _toast(m) { const card = this.shadowRoot.querySelector('ha-card'); card.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; card.appendChild(t); setTimeout(() => t.remove(), 2500); }
@@ -2419,7 +2427,7 @@ const colorSel = { select: { mode: 'dropdown', options: Object.keys(COLORS).map(
 const LABELS = {
   name: 'Vehicle name', image: 'Picture (web address or /local/… file)', image_entity: 'Or use a picture entity', show_updated: 'Show "Updated … ago"', updated_entity: 'Sensor that shows when the data last updated',
   stats_title: 'Heading above the info tiles (optional)', confirm_all: 'Ask "are you sure?" before every button', haptics: 'Vibrate on press (phones)',
-  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
+  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', caption_size: 'Size of the coloured caption on one-line paired tiles (e.g. Fuel → 165 km). Shrinks automatically if it would get cut off', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
 };
 class OneStopVehicleCardEditor extends HTMLElement {
   setConfig(c) { this._config = { ...c }; this._draw(); }
@@ -2492,6 +2500,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
         { name: 'schedule_time', selector: { entity: { filter: { domain: 'input_datetime' } } } }] },
       { type: 'expandable', name: '', title: 'Other', icon: 'mdi:cog-outline', schema: [
         { name: 'show_updated', selector: { boolean: {} } }, { name: 'updated_entity', selector: { entity: {} } },
+        { name: 'caption_size', selector: { number: { min: 11, max: 24, step: 0.5, mode: 'slider', unit_of_measurement: 'px' } } },
         grid([{ name: 'status_minutes', selector: { number: { min: 1, max: 240, mode: 'box', unit_of_measurement: 'min' } } }, { name: 'status_timeout', selector: { number: { min: 30, max: 900, mode: 'box', unit_of_measurement: 's' } } }]),
         { name: 'confirm_all', selector: { boolean: {} } }, { name: 'haptics', selector: { boolean: {} } }] },
     ];
