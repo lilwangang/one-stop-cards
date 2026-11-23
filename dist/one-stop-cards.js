@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.2.4';
+const VERSION = '1.2.5';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2254,7 +2254,7 @@ class OneStopVehicleCard extends HTMLElement {
     if (/^[A-Z_]+$/.test(st.state) || ['home', 'not_home'].includes(st.state)) return nice(st.state);
     const n = Number(st.state), u = String(st.attributes.unit_of_measurement || '');
     if (Number.isFinite(n)) {
-      if (/^\$$|CAD|USD/i.test(u)) { const per = u.match(/\/\s*(l|liter|litre|gal)/i); return `$${n.toFixed(2)}${per ? '/' + (per[1][0].toLowerCase() === 'g' ? 'gal' : 'L') : ''}`; }
+      if (/^\$$|CAD|USD/i.test(u)) { const per = u.match(/\/\s*(l|liter|litre|gal)/i); return `$${n.toFixed(2)}`; }
       const dp = Math.abs(n) >= 1000 ? 0 : Math.abs(n) >= 100 ? 0 : 1;
       return `${n.toLocaleString(undefined, { maximumFractionDigits: dp })}${u ? (u === '%' ? '%' : ' ' + u) : ''}`;
     }
