@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.2';
+const VERSION = '1.4.0';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -48,13 +48,17 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .s{display:flex;align-items:center;gap:10px;min-height:72px;padding:10px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
 .s.wide{grid-column:1/-1}
-.s.pair{align-items:stretch}
-.s.pair .i{align-self:center}
-.s .cols{display:grid;grid-template-columns:1fr 1fr;margin-top:6px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.06);overflow:hidden}
-.s .col{display:flex;flex-direction:column;gap:1px;padding:7px 12px;min-width:0}
-.s .col+.col{border-left:1px solid rgba(255,255,255,.08)}
-.s .col small{font-size:12px;font-weight:600;color:#aab6c5;letter-spacing:.2px}
-.s .col strong{font-size:17px}
+.s.pair{flex-direction:column;align-items:stretch;gap:9px;padding:12px}
+.s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
+.s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
+.s.pair .hd b{font-size:15.5px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s .cols{display:grid;grid-template-columns:1fr;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);overflow:hidden;flex:1}
+.s.wide .cols{grid-template-columns:1fr 1fr}
+.s .col{display:flex;flex-direction:column;gap:1px;padding:8px 11px;min-width:0}
+.s .col+.col{border-top:1px solid rgba(255,255,255,.08)}
+.s.wide .col+.col{border-top:0;border-left:1px solid rgba(255,255,255,.08)}
+.s .col small{font-size:12px;font-weight:600;color:#aab6c5;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s .col strong{font-size:17px;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s .i{flex:none;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
 .s .i ha-icon{--mdc-icon-size:21px;color:rgb(var(--sc))}
 .s .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
@@ -108,7 +112,10 @@ class OneStopVehicleCard extends HTMLElement {
   _img() { const c = this._cfg; if (c.image) return c.image; const st = c.image_entity && this._hass.states[c.image_entity]; return st?.attributes?.entity_picture || ''; }
   _tile(s, i) {
     const st = this._hass.states[s.entity];
-    return `<button class="s ${s.wide || s.secondary ? 'wide' : ''} ${s.secondary ? 'pair' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}"><span class="i"><ha-icon icon="${esc(s.icon || st?.attributes?.icon || 'mdi:information-outline')}"></ha-icon></span><span class="t"><span>${esc(s.name || st?.attributes?.friendly_name || s.entity)}</span>${s.secondary ? `<span class="cols"><span class="col"><small>${esc(s.value_name || '')}</small><strong data-sv="${i}"></strong></span><span class="col"><small>${esc(s.secondary_name || '')}</small><strong data-sv2="${i}"></strong></span></span>` : `<strong data-sv="${i}"></strong>`}</span></button>`;
+    const icon = `<span class="i"><ha-icon icon="${esc(s.icon || st?.attributes?.icon || 'mdi:information-outline')}"></ha-icon></span>`;
+    const title = esc(s.name || st?.attributes?.friendly_name || s.entity);
+    if (s.secondary) return `<button class="s pair ${s.wide ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}"><span class="hd">${icon}<b>${title}</b></span><span class="cols"><span class="col"><small>${esc(s.value_name || '')}</small><strong data-sv="${i}"></strong></span><span class="col"><small>${esc(s.secondary_name || '')}</small><strong data-sv2="${i}"></strong></span></span></button>`;
+    return `<button class="s ${s.wide ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}">${icon}<span class="t"><span>${title}</span><strong data-sv="${i}"></strong></span></button>`;
   }
   _render() {
     const c = this._cfg, R = this.shadowRoot; if (!R || !this._hass) return;
