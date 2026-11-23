@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2157,6 +2157,10 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .s{display:flex;align-items:center;gap:10px;min-height:72px;padding:10px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
 .s.wide{grid-column:1/-1}
 .s.pair{flex-direction:column;align-items:stretch;gap:9px;padding:12px}
+.s.pair:not(.wide){grid-row:span 2}
+.grid{grid-auto-flow:row dense}
+.s .lh{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0}.s .lh>span{white-space:nowrap}
+.s .lv{flex:none;font-style:normal;font-size:13px;font-weight:650;color:#aab6c5}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
 .s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
 .s.pair .hd b{font-size:15.5px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2222,6 +2226,7 @@ class OneStopVehicleCard extends HTMLElement {
     const st = this._hass.states[s.entity];
     const icon = `<span class="i"><ha-icon icon="${esc(s.icon || st?.attributes?.icon || 'mdi:information-outline')}"></ha-icon></span>`;
     const title = esc(s.name || st?.attributes?.friendly_name || s.entity);
+    if (s.secondary && s.compact) return `<button class="s ${s.wide ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}">${icon}<span class="t"><span class="lh"><span>${title}</span><em class="lv" data-sv="${i}"></em></span><strong data-sv2="${i}"></strong></span></button>`;
     if (s.secondary) return `<button class="s pair ${s.wide ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}"><span class="hd">${icon}<b>${title}</b></span><span class="cols"><span class="col"><small>${esc(s.value_name || '')}</small><strong data-sv="${i}"></strong></span><span class="col"><small>${esc(s.secondary_name || '')}</small><strong data-sv2="${i}"></strong></span></span></button>`;
     return `<button class="s ${s.wide ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}">${icon}<span class="t"><span>${title}</span><strong data-sv="${i}"></strong></span></button>`;
   }
@@ -2422,7 +2427,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
   _flat() {   // lists -> flat keys for ha-form
     const c = { ...DEFAULTS, ...this._config }, d = { ...c }; delete d.actions; delete d.stats; delete d.type;
     (c.actions || []).forEach((a, i) => { for (const k of ['name', 'icon', 'entity', 'color', 'confirm', 'show_last', 'primary', 'status_entity']) if (a[k] != null) d[`a${i}_${k}`] = a[k]; });
-    (c.stats || []).forEach((s, i) => { for (const k of ['name', 'icon', 'entity', 'color', 'attribute', 'hide_state', 'section', 'wide', 'secondary', 'secondary_name', 'value_name']) if (s[k] != null) d[`s${i}_${k}`] = s[k]; });
+    (c.stats || []).forEach((s, i) => { for (const k of ['name', 'icon', 'entity', 'color', 'attribute', 'hide_state', 'section', 'wide', 'secondary', 'secondary_name', 'value_name', 'compact']) if (s[k] != null) d[`s${i}_${k}`] = s[k]; });
     return d;
   }
   _unflat(d) {
@@ -2439,7 +2444,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement('ha-form');
-      this._form.computeLabel = s => LABELS[s.name] ?? { name: 'Label', icon: 'Icon', entity: 'Entity', color: 'Icon colour', confirm: 'Ask "are you sure?" first', show_last: 'Show when it was last pressed', attribute: 'Show an attribute instead (optional)', hide_state: 'Hide this tile when the state is (e.g. NO_ACTION_REQUIRED)', primary: 'Big main button (full width)', status_entity: 'Result sensor(s) – shows if it worked or failed (found automatically for GM/OnStar buttons)', section: 'Start a new group with this heading', secondary: 'Second value on the right (optional)', secondary_name: 'Second value label (e.g. To fill)', value_name: 'First value label (e.g. Price)', wide: 'Full width' }[s.name.replace(/^[as]\d+_/, '')] ?? s.name;
+      this._form.computeLabel = s => LABELS[s.name] ?? { name: 'Label', icon: 'Icon', entity: 'Entity', color: 'Icon colour', confirm: 'Ask "are you sure?" first', show_last: 'Show when it was last pressed', attribute: 'Show an attribute instead (optional)', hide_state: 'Hide this tile when the state is (e.g. NO_ACTION_REQUIRED)', primary: 'Big main button (full width)', status_entity: 'Result sensor(s) – shows if it worked or failed (found automatically for GM/OnStar buttons)', section: 'Start a new group with this heading', secondary: 'Second value on the right (optional)', secondary_name: 'Second value label (e.g. To fill)', value_name: 'First value label (e.g. Price)', compact: 'One-line tile (first value goes next to the name)', wide: 'Full width' }[s.name.replace(/^[as]\d+_/, '')] ?? s.name;
       this._form.addEventListener('value-changed', e => {
         this._config = this._unflat(e.detail.value);
         this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
@@ -2466,6 +2471,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
       grid([{ name: `s${i}_color`, selector: colorSel }, { name: `s${i}_attribute`, selector: { text: {} } }]),
       { name: `s${i}_secondary`, selector: { entity: {} } },
       grid([{ name: `s${i}_value_name`, selector: { text: {} } }, { name: `s${i}_secondary_name`, selector: { text: {} } }]),
+      { name: `s${i}_compact`, selector: { boolean: {} } },
       { name: `s${i}_section`, selector: { text: {} } },
       grid([{ name: `s${i}_hide_state`, selector: { text: {} } }, { name: `s${i}_wide`, selector: { boolean: {} } }]),
     ] }));
