@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2160,11 +2160,11 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
 .s.pair .hd b{font-size:15.5px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s .cols{display:grid;grid-template-columns:1fr;border-radius:12px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);overflow:hidden;flex:1}
+.s .cols{display:grid;grid-template-columns:1fr;flex:1}
 .s.wide .cols{grid-template-columns:1fr 1fr}
-.s .col{display:flex;flex-direction:column;gap:1px;padding:8px 11px;min-width:0}
+.s .col{display:flex;flex-direction:column;gap:1px;padding:6px 2px;min-width:0}
 .s .col+.col{border-top:1px solid rgba(255,255,255,.08)}
-.s.wide .col+.col{border-top:0;border-left:1px solid rgba(255,255,255,.08)}
+.s.wide .col+.col{border-top:0;border-left:1px solid rgba(255,255,255,.1);padding-left:14px}
 .s .col small{font-size:12px;font-weight:600;color:#aab6c5;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s .col strong{font-size:17px;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s .i{flex:none;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
