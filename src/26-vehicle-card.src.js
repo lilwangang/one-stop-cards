@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -46,13 +46,13 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .sec{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:#dbe3ec;letter-spacing:.6px;text-transform:uppercase;margin:22px 4px 10px}
 .sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,0))}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.s{display:flex;align-items:center;gap:10px;min-height:72px;padding:10px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
+.s{display:flex;align-items:center;gap:9px;min-height:72px;padding:10px 10px 10px 11px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
 .s.wide{grid-column:1/-1}
 .s.pair{flex-direction:column;align-items:stretch;gap:9px;padding:12px}
 .s.pair:not(.wide){grid-row:span 2}
 .grid{grid-auto-flow:row dense}
-.s .lh{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0}.s .lh>span{white-space:nowrap}
-.s .lv{flex:none;font-style:normal;font-size:13px;font-weight:650;color:#aab6c5}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
+.s .lh{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}.s .lh>span{white-space:nowrap;flex:none}
+.s .lv{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:14.5px;font-weight:700;color:rgb(var(--sc))}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
 .s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
 .s.pair .hd b{font-size:15.5px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
