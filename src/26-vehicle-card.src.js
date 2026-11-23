@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -48,7 +48,10 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .s{display:flex;align-items:center;gap:10px;min-height:72px;padding:10px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
 .s.wide{grid-column:1/-1}
-.s .t2{flex:none;align-items:flex-end;text-align:right;padding-left:14px;border-left:1px solid rgba(255,255,255,.1)}
+.s .vals{display:flex;align-items:baseline;gap:10px;min-width:0;white-space:nowrap}
+.s .vals em{font-style:normal;font-size:17px;font-weight:700;color:#e2e8f0;display:flex;align-items:baseline;gap:10px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.s .vals em::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:rgba(var(--sc),.9);align-self:center}
+.s .vals em small{font-size:13px;font-weight:600;color:#cbd5e1;margin-left:3px}.s .vals em>small{margin-left:-6px}
 .s .i{flex:none;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
 .s .i ha-icon{--mdc-icon-size:21px;color:rgb(var(--sc))}
 .s .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
@@ -102,7 +105,7 @@ class OneStopVehicleCard extends HTMLElement {
   _img() { const c = this._cfg; if (c.image) return c.image; const st = c.image_entity && this._hass.states[c.image_entity]; return st?.attributes?.entity_picture || ''; }
   _tile(s, i) {
     const st = this._hass.states[s.entity];
-    return `<button class="s ${s.wide || s.secondary ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}"><span class="i"><ha-icon icon="${esc(s.icon || st?.attributes?.icon || 'mdi:information-outline')}"></ha-icon></span><span class="t"><span>${esc(s.name || st?.attributes?.friendly_name || s.entity)}</span><strong data-sv="${i}"></strong></span>${s.secondary ? `<span class="t t2"><span>${esc(s.secondary_name || this._hass.states[s.secondary]?.attributes?.friendly_name || '')}</span><strong data-sv2="${i}"></strong></span>` : ''}</button>`;
+    return `<button class="s ${s.wide || s.secondary ? 'wide' : ''}" data-s="${i}" style="--sc:${COLORS[s.color] || COLORS.blue}"><span class="i"><ha-icon icon="${esc(s.icon || st?.attributes?.icon || 'mdi:information-outline')}"></ha-icon></span><span class="t"><span>${esc(s.name || st?.attributes?.friendly_name || s.entity)}</span>${s.secondary ? `<span class="vals"><strong data-sv="${i}"></strong><em data-sv2="${i}" data-l="${esc(s.secondary_name || '')}"></em></span>` : `<strong data-sv="${i}"></strong>`}</span></button>`;
   }
   _render() {
     const c = this._cfg, R = this.shadowRoot; if (!R || !this._hass) return;
@@ -158,7 +161,7 @@ class OneStopVehicleCard extends HTMLElement {
     const R = this.shadowRoot, h = this._hass, c = this._cfg; if (!R || !this._built) return;
     (this._stats || []).forEach((s, i) => {
       const el = R.querySelector(`[data-sv="${i}"]`); if (!el) return; const v = this._value(s); const m = String(v).match(/^([-$\d.,]+(?:\/L|\/gal)?)\s+(\S.*)$/); const html = m ? `${esc(m[1])}<small>${esc(m[2])}</small>` : esc(v); if (el.innerHTML !== html) el.innerHTML = html;
-      const e2 = R.querySelector(`[data-sv2="${i}"]`); if (e2) { const v2 = this._value({ entity: s.secondary }); const m2 = String(v2).match(/^([-$\d.,]+)\s+(\S.*)$/); const h2 = m2 ? `${esc(m2[1])}<small>${esc(m2[2])}</small>` : esc(v2); if (e2.innerHTML !== h2) e2.innerHTML = h2; }
+      const e2 = R.querySelector(`[data-sv2="${i}"]`); if (e2) { const v2 = this._value({ entity: s.secondary }); const m2 = String(v2).match(/^([-$\d.,]+)\s+(\S.*)$/); const lb = e2.dataset.l; const h2 = `<span>${m2 ? `${esc(m2[1])}<small>${esc(m2[2])}</small>` : esc(v2)}</span>${lb ? `<small>${esc(lb)}</small>` : ''}`; if (e2.innerHTML !== h2) e2.innerHTML = h2; }
       const st = h.states[s.entity], tile = el.closest('.s'); const bad = st && (/(ACTION_REQUIRED|WARNING|CRITICAL|LOW)$/.test(st.state) && st.state !== 'NO_ACTION_REQUIRED' || st.state === 'TRUE' && /low/i.test(s.entity));
       tile.classList.toggle('warn', !!bad);
       tile.style.display = s.hide_state && st && String(s.hide_state).split(',').map(x => x.trim()).includes(st.state) ? 'none' : '';
@@ -318,7 +321,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement('ha-form');
-      this._form.computeLabel = s => LABELS[s.name] ?? { name: 'Label', icon: 'Icon', entity: 'Entity', color: 'Icon colour', confirm: 'Ask "are you sure?" first', show_last: 'Show when it was last pressed', attribute: 'Show an attribute instead (optional)', hide_state: 'Hide this tile when the state is (e.g. NO_ACTION_REQUIRED)', primary: 'Big main button (full width)', status_entity: 'Result sensor(s) – shows if it worked or failed (found automatically for GM/OnStar buttons)', section: 'Start a new group with this heading', secondary: 'Second value on the right (optional)', secondary_name: 'Second value label', wide: 'Full width' }[s.name.replace(/^[as]\d+_/, '')] ?? s.name;
+      this._form.computeLabel = s => LABELS[s.name] ?? { name: 'Label', icon: 'Icon', entity: 'Entity', color: 'Icon colour', confirm: 'Ask "are you sure?" first', show_last: 'Show when it was last pressed', attribute: 'Show an attribute instead (optional)', hide_state: 'Hide this tile when the state is (e.g. NO_ACTION_REQUIRED)', primary: 'Big main button (full width)', status_entity: 'Result sensor(s) – shows if it worked or failed (found automatically for GM/OnStar buttons)', section: 'Start a new group with this heading', secondary: 'Second value on the right (optional)', secondary_name: 'Word after the second value (e.g. to fill)', wide: 'Full width' }[s.name.replace(/^[as]\d+_/, '')] ?? s.name;
       this._form.addEventListener('value-changed', e => {
         this._config = this._unflat(e.detail.value);
         this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
