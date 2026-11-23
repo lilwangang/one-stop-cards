@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -244,9 +244,11 @@ class OneStopVehicleCard extends HTMLElement {
       else if (age > (+this._cfg.status_timeout || 180) * 1000) { kind = 'fail'; msg = 'No answer from the vehicle'; t = sent; }
       else { kind = 'wait'; t = sent; }
     } else {   // nothing pressed here: show the latest real result if recent
-      const last = steps.reduce((x, y) => (y.t > x.t ? y : x));
+      // a multi-step action only counts as run when its final step reported recently
+      const last = steps.length > 1 ? steps[steps.length - 1] : steps[0];
       if (!last.t || now - last.t > win || !last.kind) return { fresh: false };
-      const failed = steps.find(s => s.kind === 'fail' && now - s.t < win && s.t >= last.t - 300000);
+      steps.forEach(s => { if (s.t < last.t - 300000) s.kind = 'idle'; });
+      const failed = steps.find(s => s.kind === 'fail');
       kind = failed ? 'fail' : last.kind; msg = failed ? failed.st : last.st; t = failed ? failed.t : last.t;
       if (kind === 'wait' && now - t > (+this._cfg.status_timeout || 180) * 1000) { kind = 'fail'; msg = 'No answer from the vehicle'; }
     }
