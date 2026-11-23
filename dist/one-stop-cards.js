@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.2.1';
+const VERSION = '1.2.2';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2135,7 +2135,7 @@ ha-card{position:relative;overflow:hidden;padding:20px 16px 18px;border-radius:2
 button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
-.upd{font-size:12.5px;color:#7f8ea3;white-space:nowrap}
+.upd{font-size:13px;color:#b6c2d0;white-space:nowrap}
 .hero{position:relative;margin:8px 0 0}
 .hero::after{content:'';position:absolute;left:14%;right:14%;bottom:6px;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.65),rgba(0,0,0,0));z-index:0}
 .pic{position:relative;z-index:1;display:block;width:94%;max-width:460px;margin:0 auto}
@@ -2149,9 +2149,9 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .a .c ha-icon{--mdc-icon-size:25px;color:rgb(var(--ac))}
 .a.on .c{background:rgba(var(--ac),.16);border:1.5px solid rgba(var(--ac),.9);box-shadow:0 0 16px rgba(var(--ac),.4)}
 .a.busy .c{animation:pulse 1s ease-in-out infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(var(--ac),.18)}}
-.a b{font-size:12px;font-weight:600;line-height:14px;color:#dbe3ec}
-.a small{font-size:11px;color:#8f9db0;margin-top:-5px}
-.sec{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#8494a9;letter-spacing:.8px;text-transform:uppercase;margin:22px 4px 10px}
+.a b{font-size:13px;font-weight:600;line-height:16px;color:#f1f5f9}
+.a small{font-size:12px;color:#b6c2d0;margin-top:-5px}
+.sec{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:#dbe3ec;letter-spacing:.6px;text-transform:uppercase;margin:22px 4px 10px}
 .sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,0))}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .s{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
@@ -2159,8 +2159,8 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .s .i{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
 .s .i ha-icon{--mdc-icon-size:21px;color:rgb(var(--sc))}
 .s .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.s span{font-size:12px;color:#8f9db0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s strong small{font-size:12px;font-weight:600;color:#9aa7b8;margin-left:3px;letter-spacing:0}
+.s span{font-size:13.5px;font-weight:500;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s strong small{font-size:13px;font-weight:600;color:#cbd5e1;margin-left:3px;letter-spacing:0}
 .s strong{color:#f4f7fb;font-size:17px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s.warn{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.08)} .s.warn strong{color:#fca5a5}
 .s.ok strong{color:#86efac}
@@ -2173,7 +2173,7 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .tires .car .body::before,.tires .car .body::after{content:'';position:absolute;left:-7px;right:-7px;height:18px;border-left:5px solid rgba(255,255,255,.3);border-right:5px solid rgba(255,255,255,.3);border-radius:2px}
 .tires .car .body::before{top:14px}.tires .car .body::after{bottom:14px}
 .tp{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:rgba(45,212,191,.10);border:1px solid rgba(45,212,191,.25)}
-.tp.r{text-align:right}.tp span{font-size:11px;color:#8f9db0}.tp strong{font-size:18px;font-weight:700}.tp strong small{font-size:12px;color:#9aa7b8;font-weight:600}
+.tp.r{text-align:right}.tp span{font-size:13px;font-weight:500;color:#cbd5e1}.tp strong{font-size:18px;font-weight:700}.tp strong small{font-size:12px;color:#9aa7b8;font-weight:600}
 .tp.low{background:rgba(251,146,60,.12);border-color:rgba(251,146,60,.5)}.tp.low strong{color:#fdba74}
 .a small.ok{color:#86efac;font-weight:600}.a small.fail{color:#fca5a5;font-weight:700}.a small.wait{color:#93c5fd;font-weight:600}
 .a.wait .c{box-shadow:0 0 0 2px rgba(96,165,250,.55);animation:ring 1.2s ease-in-out infinite}@keyframes ring{50%{box-shadow:0 0 0 6px rgba(96,165,250,.15)}}
@@ -2182,7 +2182,7 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 @keyframes slide{from{opacity:0;transform:translateY(-6px)}}
 .st .ic{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center}
 .st .ic ha-icon{--mdc-icon-size:22px}
-.st .tx{flex:1;min-width:0}.st .tx b{display:block;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.st .tx>span:not(.steps){display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#9aa7b8;margin-top:2px}
+.st .tx{flex:1;min-width:0}.st .tx b{display:block;font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.st .tx>span:not(.steps){display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:#cbd5e1;margin-top:2px}
 .st .steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.st .steps i{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:#c7d2de}
 .st .steps i.ok{background:rgba(134,239,172,.15);color:#86efac}.st .steps i.fail{background:rgba(248,113,113,.18);color:#fca5a5}.st .steps i.wait{background:rgba(96,165,250,.18);color:#93c5fd}
 .st.wait{border-color:rgba(96,165,250,.45);background:rgba(96,165,250,.08)}.st.wait .ic{background:rgba(96,165,250,.18);color:#93c5fd}.st.wait .ic ha-icon{animation:spin 1.4s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
