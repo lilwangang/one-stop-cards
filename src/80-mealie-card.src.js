@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 const TAG = 'one-stop-mealie-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -46,6 +46,45 @@ function foodKey(text) {
   const w = t.replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter(x => x && x.length > 1 && !FLUFF.has(x));
   return w.slice(-3).join(' ').trim();
 }
+
+/* ---------- ingredient filter chips (tap Chicken + Pasta → recipes with both) ---------- */
+const GROUPS = [
+  ['chicken', 'Chicken', 'chicken', 'broth stock bouillon base soup'],
+  ['beef', 'Beef', 'beef steak sirloin chuck brisket', 'broth stock bouillon base soup'],
+  ['pork', 'Pork', 'pork ham tenderloin', 'broth stock'],
+  ['turkey', 'Turkey', 'turkey', 'broth stock'],
+  ['bacon', 'Bacon', 'bacon', ''],
+  ['sausage', 'Sausage', 'sausage chorizo kielbasa', ''],
+  ['salmon', 'Salmon', 'salmon', ''],
+  ['shrimp', 'Shrimp', 'shrimp prawn', ''],
+  ['fish', 'Fish', 'fish cod tilapia halibut tuna haddock', 'sauce'],
+  ['pasta', 'Pasta', 'pasta noodle macaroni spaghetti penne ziti lasagna fettuccine fettucine rigatoni shell linguine elbow rotini orzo', ''],
+  ['rice', 'Rice', 'rice', 'flour vinegar cereal krispy krispie paper wine milk'],
+  ['potato', 'Potatoes', 'potato hashbrown hash tot', 'sweet starch flake chip'],
+  ['sweetpotato', 'Sweet potato', 'sweet+potato', ''],
+  ['cheese', 'Cheese', 'cheese cheddar mozzarella parmesan feta ricotta', ''],
+  ['egg', 'Eggs', 'egg', 'replacer noodle'],
+  ['broccoli', 'Broccoli', 'broccoli', ''],
+  ['mushroom', 'Mushrooms', 'mushroom', 'soup'],
+  ['spinach', 'Spinach', 'spinach', ''],
+  ['tomato', 'Tomatoes', 'tomato', 'paste'],
+  ['pepper', 'Peppers', 'bell jalapeno poblano', ''],
+  ['beans', 'Beans', 'black+bean kidney+bean pinto chickpea', ''],
+  ['corn', 'Corn', 'corn', 'syrup flake'],
+  ['zucchini', 'Zucchini', 'zucchini', ''],
+  ['onion', 'Onion', 'onion', 'powder soup'],
+  ['garlic', 'Garlic', 'garlic', 'powder salt'],
+  ['pumpkin', 'Pumpkin', 'pumpkin', 'spice'],
+  ['chocolate', 'Chocolate', 'chocolate cocoa', ''],
+  ['banana', 'Banana', 'banana', ''],
+  ['blueberry', 'Blueberries', 'blueberry', ''],
+  ['apple', 'Apple', 'apple', 'vinegar'],
+  ['lemon', 'Lemon', 'lemon', ''],
+  ['peanutbutter', 'Peanut butter', 'peanut+butter', ''],
+  ['oats', 'Oats', 'oat oatmeal', 'milk flour'],
+].map(([k, label, inc, exc]) => ({ k, label, inc: inc.split(' ').map(x => x.split('+').map(sing)), exc: new Set(exc ? exc.split(' ').map(sing) : []) }));
+const hit = (g, text) => { const w = words(text), set = new Set(w); return g.inc.some(all => all.every(x => set.has(x))) && !w.some(x => g.exc.has(x)); };
+const lineHas = (g, line) => { const out = String(line).replace(/\([^)]*\)?/g, ' '); return hit(g, out) || (!foodKey(out) && hit(g, line)); };
 
 /* ---------- styles ---------- */
 const CSS = `
@@ -130,6 +169,10 @@ button.li{display:flex;align-items:center;gap:10px;width:100%}button.li span{fle
 button.li ha-icon{flex:none;--mdc-icon-size:18px;color:rgba(var(--ac),.85)}button.li:active{background:rgba(var(--ac),.12);border-radius:10px}
 .sec small{font-weight:500;text-transform:none;letter-spacing:0;color:#8f9cab;margin-left:6px}
 .fchips{flex:none;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.gchips{flex:none;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:-2px -18px 12px;padding:0 18px;-webkit-overflow-scrolling:touch}.gchips::-webkit-scrollbar{display:none}
+.gchips button{flex:none;height:38px;padding:0 14px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:14.5px;font-weight:600;background:rgba(255,255,255,.08);border:1px solid rgba(211,224,238,.16);white-space:nowrap}
+.gchips button small{font-size:12px;font-weight:500;color:#9fb0c1}.gchips button.on{background:rgba(var(--ac),.32);border-color:rgba(var(--ac),.75)}.gchips button.on small{color:#e6eef6}
+.gchips .clr{background:none;border-color:transparent;color:#aebdcb;padding:0 8px}
 .fchips button{height:36px;padding:0 14px;border-radius:999px;display:flex;align-items:center;font-size:14px;font-weight:600;background:rgba(255,255,255,.08);border:1px solid rgba(211,224,238,.16)}
 .fchips button.on{background:rgba(var(--ac),.32);border-color:rgba(var(--ac),.7)}
 .tile .mt{display:block;font-style:normal;font-size:12px;line-height:15px;color:rgb(var(--ac));margin-top:-3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -267,30 +310,61 @@ class OneStopMealieCard extends HTMLElement {
   }
 
   /* ----- recipes grid (browse or pick for a day) ----- */
-  _recipes({ mode, date, back }) {
+  _recipes({ mode, date, back, picked }) {
     const meal = this._mealLabel(), when = date === this._date() ? 'tonight' : date ? new Date(date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' }) : '';
     const s = sheet(this, { icon: mode === 'pick' ? 'calendar-plus' : 'book-open-page-variant', title: mode === 'pick' ? `Choose ${meal} for ${when}` : 'Your recipes', tall: true, onBack: back });
-    s.el.innerHTML = `<p class="intro">${mode === 'pick' ? `Tap a recipe to plan it for ${when}.` : 'Tap a recipe to see it, cook it or plan it.'}</p><input class="in" type="search" placeholder="Search recipes…" aria-label="Search recipes"><div class="body"><div class="tiles"><div class="msg" style="grid-column:1/-1">Loading recipes…</div></div></div>`;
-    const grid = s.el.querySelector('.tiles'), input = s.el.querySelector('input'); let t, q = 0;
+    s.el.innerHTML = `<p class="intro">${mode === 'pick' ? `Tap a recipe to plan it for ${when}.` : 'Tap a recipe to see it, cook it or plan it.'}</p><input class="in" type="search" placeholder="Search recipes…" aria-label="Search recipes"><div class="gchips" aria-label="Filter by ingredient"></div><div class="body"><div class="tiles"><div class="msg" style="grid-column:1/-1">Loading recipes…</div></div></div>`;
+    const grid = s.el.querySelector('.tiles'), input = s.el.querySelector('input'), chipBox = s.el.querySelector('.gchips');
+    const sel = new Set(picked || []); let t, q = 0, idx = null, base = [];
+    const tile = (id, name, sub, line) => { const img = this._img(id);
+      return `<button class="tile" data-id="${esc(id)}"><span class="cv">${ic('silverware-fork-knife')}${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><span class="t">${esc(name)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${line ? `<em class="mt">${esc(line)}</em>` : ''}</button>`; };
+    const has = (x, g) => x.i.some(l => lineHas(g, l));
+    const chips = () => {
+      if (!idx) { chipBox.innerHTML = ''; return; }
+      const rec = Object.values(idx.r), chosen = GROUPS.filter(g => sel.has(g.k));
+      const pool = rec.filter(x => chosen.every(g => has(x, g)));
+      const list = GROUPS.map(g => ({ g, n: sel.has(g.k) ? pool.length : pool.filter(x => has(x, g)).length, all: base[g.k] || 0 }))
+        .filter(o => sel.has(o.g.k) || o.n > 0).sort((a, b) => sel.has(b.g.k) - sel.has(a.g.k));
+      chipBox.innerHTML = (sel.size ? `<button class="clr" data-clear>${ic('close')}Clear</button>` : '') + list.map(o => `<button data-g="${o.g.k}" class="${sel.has(o.g.k) ? 'on' : ''}">${esc(o.g.label)}${sel.has(o.g.k) ? '' : ` <small>${o.n}</small>`}</button>`).join('');
+    };
+    const filtered = () => {
+      const chosen = GROUPS.filter(g => sel.has(g.k)), term = input.value.trim().toLowerCase();
+      const hits = Object.entries(idx.r).filter(([, x]) => chosen.every(g => has(x, g)) && (!term || x.n.toLowerCase().includes(term)))
+        .sort((a, b) => a[1].n.localeCompare(b[1].n));
+      grid.innerHTML = hits.length ? hits.map(([id, x]) => tile(id, x.n, x.t, chosen.length ? chosen.map(g => (x.i.find(l => lineHas(g, l)) || '').replace(/\s+/g, ' ')).filter(Boolean).join(' · ').slice(0, 90) : '')).join('')
+        : '<div class="msg" style="grid-column:1/-1">No recipes have all of those. Tap one to remove it.</div>';
+      s.root.querySelector('h3').firstChild.textContent = chosen.length ? `${hits.length} recipe${hits.length === 1 ? '' : 's'} with ${chosen.map(g => g.label.toLowerCase()).join(' + ')}` : (mode === 'pick' ? `Choose ${meal} for ${when}` : 'Your recipes');
+    };
     const load = async term => {
+      if (sel.size && idx) return filtered();
       const n = ++q; grid.innerHTML = '<div class="msg" style="grid-column:1/-1">Loading recipes…</div>';
       try {
-        const r = await this._m('get_recipes', { result_limit: 200, ...(term ? { search_terms: term } : {}) }); if (n !== q || s.closed) return;
+        const r = await this._m('get_recipes', { result_limit: 500, ...(term ? { search_terms: term } : {}) }); if (n !== q || s.closed) return;
         const items = r?.recipes?.items || [];
-        grid.innerHTML = items.length ? items.map(x => { const img = this._img(x.recipe_id), sub = x.total_time || x.perform_time || '';
-          return `<button class="tile" data-id="${esc(x.recipe_id)}"><span class="cv">${ic('silverware-fork-knife')}${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><span class="t">${esc(x.name)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`; }).join('')
+        grid.innerHTML = items.length ? items.map(x => tile(x.recipe_id, x.name, x.total_time || x.perform_time || '')).join('')
           : `<div class="msg" style="grid-column:1/-1">${term ? 'No recipes match.' : 'No recipes yet. Use the import button to add one.'}</div>`;
       } catch (e) { if (n === q) grid.innerHTML = '<div class="msg err" style="grid-column:1/-1">Couldn’t load recipes.</div>'; }
     };
     input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => load(input.value.trim()), 300); });
-    grid.addEventListener('click', async e => {
-      const tile = e.target.closest('.tile'); if (!tile) return;
-      if (mode !== 'pick') return this._recipeSheet(tile.dataset.id, () => this._recipes({ mode, date, back }));
-      tile.classList.add('busy');
-      try { await this._plan(date, tile.dataset.id); s.close(); this._load(true); if (back) back(); }
-      catch (err) { tile.classList.remove('busy'); input.insertAdjacentHTML('afterend', `<div class="msg err">${esc(err.message || 'Couldn’t plan that recipe.')}</div>`); }
+    chipBox.addEventListener('click', e => {
+      const c = e.target.closest('button'); if (!c || !idx) return;
+      if (c.dataset.clear !== undefined) sel.clear(); else sel.has(c.dataset.g) ? sel.delete(c.dataset.g) : sel.add(c.dataset.g);
+      chips(); grid.parentElement.scrollTop = 0;
+      if (sel.size) filtered(); else { s.root.querySelector('h3').firstChild.textContent = mode === 'pick' ? `Choose ${meal} for ${when}` : 'Your recipes'; load(input.value.trim()); }
     });
-    load('');
+    grid.addEventListener('click', async e => {
+      const tl = e.target.closest('.tile'); if (!tl) return;
+      if (mode !== 'pick') return this._recipeSheet(tl.dataset.id, () => this._recipes({ mode, date, back, picked: [...sel] }));
+      tl.classList.add('busy');
+      try { await this._plan(date, tl.dataset.id); s.close(); this._load(true); if (back) back(); }
+      catch (err) { tl.classList.remove('busy'); input.insertAdjacentHTML('afterend', `<div class="msg err">${esc(err.message || 'Couldn’t plan that recipe.')}</div>`); }
+    });
+    if (!sel.size) load('');
+    this._ingIndex().then(x => {
+      if (s.closed) return; idx = x; base = {};
+      for (const g of GROUPS) base[g.k] = Object.values(idx.r).filter(r => has(r, g)).length;
+      chips(); if (sel.size) filtered();
+    }).catch(() => {});
   }
   async _plan(date, recipeId) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !UUID.test(recipeId)) throw new Error('Invalid day or recipe');
