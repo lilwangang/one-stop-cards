@@ -7496,7 +7496,7 @@ console.info(`%c ONE STOP SMOKER %c ${VERSION} `, 'color:#fff;background:#b45309
  */
 (() => {
 'use strict';
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const TAG = 'one-stop-security-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7559,6 +7559,14 @@ ha-card.alarm{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{box
 .codes{display:grid;gap:8px}
 .cd{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;border-radius:16px;border:1px solid rgba(211,224,238,.14);background:rgba(66,70,76,.26)}
 .cd.on{border-color:rgba(94,214,140,.45);background:rgba(94,214,140,.08)}
+.cd{flex-direction:column;align-items:stretch;padding:12px}
+.cd .r1{display:flex;align-items:center;gap:12px}.cd .r1 .t{flex:1;min-width:0;font-size:15.5px;font-weight:650}.cd .r1 .t small{display:block;font-size:12px;font-weight:500;color:#aebdcb;margin-top:1px}
+.cd .av{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);font-weight:700;font-size:16px}
+.cd .r2{display:flex;gap:8px;margin-top:10px}
+.cd .pin{flex:1;min-width:0;height:46px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(211,224,238,.12);display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:20px;letter-spacing:.28em;font-variant-numeric:tabular-nums;color:var(--primary-text-color,#f2f6fa);font-family:inherit;box-sizing:border-box}
+.cd .pin ha-icon{--mdc-icon-size:20px;color:#9fb0c0;letter-spacing:0}.cd input.pin{outline:none;border-color:rgba(94,214,140,.6)}.cd input.pin::placeholder{letter-spacing:normal;font-size:15px;color:#7f8d9c}
+.cd .ib{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(211,224,238,.12)}.cd .ib ha-icon{--mdc-icon-size:21px}.cd .ib.pri{background:rgba(94,214,140,.28);border-color:rgba(94,214,140,.6)}
+.cd .cerr{font-size:12.5px;color:#f0b8bd;margin-top:6px}
 .cdn{flex:1;min-width:0;display:flex;align-items:center;gap:12px}.cdn .av{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);font-weight:700;font-size:16px}
 .cd.on .av{background:rgba(94,214,140,.22);color:#86efac}.cdn .t{min-width:0;font-size:15.5px;font-weight:650}.cdn .t small{display:block;font-size:12px;font-weight:500;color:#aebdcb;margin-top:1px}
 .tg{flex:none;width:52px;height:32px;border-radius:16px;background:rgba(255,255,255,.16);position:relative;transition:background .15s}.tg:after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .15s}
@@ -7617,7 +7625,7 @@ function sheet(card, { icon, title, sub = '', wide = false }) {
 class OneStopSecurityCard extends HTMLElement {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig(hass) { const S = hass?.states || {}, k = Object.keys(S); return { alarm: k.find(x => x.startsWith('alarm_control_panel.')) || '', locks: k.filter(x => x.startsWith('lock.')).slice(0, 2) }; }
-  setConfig(c) { this._cfg = { title: 'Security', codes: 'auto', ...c }; if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._sig = null; this._skel = false; this._camEls = {}; this._confirm = {}; if (this._hass) this._render(); }
+  setConfig(c) { this._cfg = { title: 'Security', codes: 'auto', ...c }; if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._sig = null; this._skel = false; this._camEls = {}; this._confirm = {}; this._reveal = new Set(); this._edit = {}; this._codeErr = {}; if (this._hass) this._render(); }
   set hass(h) { this._hass = h; this._render(); if (this._sheet?.update) this._sheet.update(); this.shadowRoot?.querySelectorAll('.live').forEach(l => { const el = l.firstElementChild; if (el && !el.classList.contains('wait')) el.hass = h; }); }
   getCardSize() { return 8; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
@@ -7662,8 +7670,10 @@ class OneStopSecurityCard extends HTMLElement {
     const cams = this._list('cameras');
     const openDoors = doors.filter(d => d.st === 'on'), unlocked = locks.filter(l => l.st && !['locked', ...DEAD].includes(l.st)), moving = motion.filter(m => m.st === 'on');
     const codes = this._codes();
-    const sig = JSON.stringify([ast, al?.attributes?.open_sensors, locks.map(l => [l.st, l.door, l.bat]), doors.map(d => d.st), motion.map(m => [m.st, Math.floor((Date.now() - new Date(m.changed)) / 60000)]), cams, this._confirm, codes.map(x => [this._s(x.enabled)?.state, this._s(x.name_entity)?.state])]);
-    if (sig === this._sig) return; this._sig = sig;
+    const sig = JSON.stringify([ast, al?.attributes?.open_sensors, locks.map(l => [l.st, l.door, l.bat]), doors.map(d => d.st), motion.map(m => [m.st, Math.floor((Date.now() - new Date(m.changed)) / 60000)]), cams, this._confirm, codes.map(x => [this._s(x.enabled)?.state, this._s(x.name_entity)?.state, this._s(x.pin)?.state, this._s(x.used)?.state]), [...this._reveal], Object.keys(this._edit), this._codeErr]);
+    if (sig === this._sig) return;
+    if (this._sig && Object.keys(this._edit || {}).length && this.shadowRoot.activeElement?.matches?.('input[data-in]')) return;   // keep the PIN box steady while typing
+    this._sig = sig;
     const problems = [unlocked.length ? `${unlocked.length} unlocked` : '', openDoors.length ? `${openDoors.length} open` : ''].filter(Boolean);
     const status = problems.length ? problems.join(' · ') : [locks.length ? 'All locked' : '', doors.length ? 'doors closed' : ''].filter(Boolean).join(' · ') || 'All good';
     const f = al?.attributes?.supported_features || 0, armed = ast && ast.startsWith('armed');
@@ -7691,11 +7701,26 @@ class OneStopSecurityCard extends HTMLElement {
       ${doors.length ? `<div class="sec">${ic('door')}Doors &amp; windows<em>${openDoors.length ? `${openDoors.length} open` : 'All closed'}</em></div><div class="chips">${doors.map(d => `<span class="chip ${d.st === 'on' ? 'hot' : ''}">${ic(d.st === 'on' ? (/window/i.test(d.name) ? 'window-open-variant' : 'door-open') : (/window/i.test(d.name) ? 'window-closed-variant' : 'door-closed'))}${esc(d.name)}${d.st === 'on' ? ` <small>open ${ago(d.changed)}</small>` : ''}</span>`).join('')}</div>` : ''}
       ${motion.length ? `<div class="sec">${ic('motion-sensor')}Motion<em>${moving.length ? `${moving.length} now` : 'All quiet'}</em></div><div class="chips">${motion.map(m => `<span class="chip ${m.st === 'on' ? 'mo' : ''}">${ic(m.st === 'on' ? 'motion-sensor' : 'motion-sensor-off')}${esc(m.name)} <small>${m.st === 'on' ? 'now' : ago(m.changed)}</small></span>`).join('')}</div>` : ''}
       ${codes.length ? `<div class="sec">${ic('dialpad')}Door codes<em>${codes.filter(x => this._s(x.enabled)?.state === 'on').length} on</em></div><div class="codes">${codes.map((x, i) => {
-        const on = this._s(x.enabled)?.state === 'on', nm = this._s(x.name_entity)?.state || x.name || `Code ${i + 1}`;
-        return `<div class="cd ${on ? 'on' : ''}"><button class="cdn" data-a="codes"><span class="av">${esc((nm[0] || '?').toUpperCase())}</span><span class="t">${esc(nm)}<small>${on ? 'Can open the doors' : 'Off'}</small></span></button><button class="tg ${on ? 'on' : ''}" data-code="${esc(x.enabled)}" aria-label="${on ? 'Turn off' : 'Turn on'} ${esc(nm)}"></button></div>`; }).join('')}
-        <button class="mng" data-a="codes">${ic('pencil-outline')}See or change codes</button></div>` : ''}
+        const on = this._s(x.enabled)?.state === 'on', nm = this._s(x.name_entity)?.state || x.name || `Code ${i + 1}`, pin = this._s(x.pin)?.state || '';
+        const used = this._s(x.used)?.state, usedTxt = used && !DEAD.includes(used) ? `used ${ago(used)}` : 'never used';
+        const show = this._reveal.has(i), ed = this._edit[i] != null, err = this._codeErr[i];
+        return `<div class="cd ${on ? 'on' : ''}"><div class="r1"><span class="av">${esc((nm[0] || '?').toUpperCase())}</span><span class="t">${esc(nm)}<small>${on ? 'On' : 'Off'} · ${esc(usedTxt)}</small></span><button class="tg ${on ? 'on' : ''}" data-code="${esc(x.enabled)}" aria-label="${on ? 'Turn off' : 'Turn on'} ${esc(nm)}"></button></div>
+          <div class="r2">${ed ? `<input class="pin" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="New PIN" value="${esc(this._edit[i])}" data-in="${i}" aria-label="New PIN for ${esc(nm)}"><button class="ib pri" data-save="${i}" aria-label="Save">${ic('check')}</button><button class="ib" data-cancel="${i}" aria-label="Cancel">${ic('close')}</button>`
+            : `<button class="pin" data-eye="${i}" aria-label="${show ? 'Hide' : 'Show'} PIN"><span>${pin ? esc(show ? pin : pin.replace(/./g, '•')) : 'No PIN set'}</span>${ic(show ? 'eye-off-outline' : 'eye-outline')}</button><button class="ib" data-edit="${i}" aria-label="Change PIN">${ic('pencil-outline')}</button>`}</div>
+          ${err ? `<div class="cerr">${esc(err)}</div>` : ''}</div>`; }).join('')}</div>` : ''}
     `;
     R.querySelectorAll('[data-code]').forEach(b => b.addEventListener('click', () => { b.classList.toggle('on'); this._hass.callService('switch', 'toggle', { entity_id: b.dataset.code }); }));
+    R.querySelectorAll('[data-eye]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.eye; this._reveal.has(i) ? this._reveal.delete(i) : this._reveal.add(i); this._sig = null; this._render(); }));
+    R.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.edit; this._edit = { ...this._edit, [i]: '' }; delete this._codeErr[i]; this._sig = null; this._render(); R.querySelector(`[data-in="${i}"]`)?.focus(); }));
+    R.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => { const e = { ...this._edit }; delete e[+b.dataset.cancel]; this._edit = e; this._sig = null; this._render(); }));
+    R.querySelectorAll('[data-in]').forEach(inp => { inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, ''); this._edit[+inp.dataset.in] = inp.value; }); inp.addEventListener('keydown', e => { if (e.key === 'Enter') R.querySelector(`[data-save="${inp.dataset.in}"]`)?.click(); }); });
+    R.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+      const i = +b.dataset.save, v = this._edit[i] || '';
+      if (!/^\d{4,10}$/.test(v)) { this._codeErr[i] = 'Use 4 to 10 numbers.'; this._sig = null; this._render(); return; }
+      try { await this._hass.callService('text', 'set_value', { entity_id: codes[i].pin, value: v }); const e = { ...this._edit }; delete e[i]; this._edit = e; delete this._codeErr[i]; this._reveal.add(i); }
+      catch (err) { this._codeErr[i] = 'Couldn’t save that PIN.'; }
+      this._sig = null; this._render();
+    }));
     R.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => this._arm(b.dataset.arm)));
     R.querySelectorAll('[data-lock]').forEach(b => b.addEventListener('click', () => this._lock(b.dataset.lock)));
     R.querySelectorAll('[data-a=codes]').forEach(b => b.addEventListener('click', () => this._codesSheet()));

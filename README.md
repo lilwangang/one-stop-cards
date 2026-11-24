@@ -82,7 +82,7 @@ probes:
 ```
 
 ### One Stop - Security card
-Everything security in one card: the alarm with Home / Away / Night buttons (keypad pop-up if your alarm needs a code), each lock with its door sensor and battery (unlock asks for a second tap), doors and windows, motion, and live cameras at the top, all visible at once (or one at a time with tabs: `camera_layout: tabs`). Cameras set up in Scrypted (`scrypted: <device id>`) get **Talk** and **Sound** buttons for two-way audio; others play Home Assistant's live view. If you use Lock Code Manager, a **Door codes** section lists each code with an on/off switch, and "See or change codes" opens a pop-up to show or change PINs.
+Everything security in one card: the alarm with Home / Away / Night buttons (keypad pop-up if your alarm needs a code), each lock with its door sensor and battery (unlock asks for a second tap), doors and windows, motion, and live cameras at the top, all visible at once (or one at a time with tabs: `camera_layout: tabs`). Cameras set up in Scrypted (`scrypted: <device id>`) get **Talk** and **Sound** buttons for two-way audio; others play Home Assistant's live view. If you use Lock Code Manager, a **Door codes** section lists each code with an on/off switch, its PIN (tap to show) and a pencil to change it right there.
 
 ```yaml
 type: custom:one-stop-security-card
