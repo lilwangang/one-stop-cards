@@ -2567,7 +2567,7 @@ console.info(`%c ONE STOP VEHICLE CARD %c ${VERSION} `, 'color:#fff;background:#
  */
 (() => {
 'use strict';
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-dropdown-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2612,8 +2612,9 @@ class OneStopDropdownCard extends HTMLElement {
   _list() {   // [{value,label}] after filtering/renaming
     const c = this._cfg, st = this._hass.states[c.entity]; if (!st) return [];
     const raw = c.attribute ? (st.attributes[c.attribute] || []) : (st.attributes.options || []);
-    const map = {}; (c.options || []).forEach(o => { if (typeof o === 'string') map[o] = null; else if (o && o.value != null) map[o.value] = o.label ?? null; });
-    const keys = c.options && c.options.length ? (c.options.map(o => (typeof o === 'string' ? o : o.value)).filter(v => raw.includes(v))) : raw;
+    const map = {}, hide = {}; (c.options || []).forEach(o => { if (typeof o === 'string') map[o] = null; else if (o && o.value != null) { map[o.value] = o.label ?? null; if (o.hide_when) hide[o.value] = o.hide_when; } });
+    const hidden = v => { const w = hide[v]; if (!w) return false; const s = this._hass.states[w.entity]?.state; return [].concat(w.state).map(String).includes(String(s)); };
+    const keys = (c.options && c.options.length ? c.options.map(o => (typeof o === 'string' ? o : o.value)).filter(v => raw.includes(v)) : raw).filter(v => !hidden(v));
     return keys.map(v => ({ value: v, label: map[v] || this._fmt(st, v) }));
   }
   _fmt(st, v) {
@@ -2633,7 +2634,8 @@ class OneStopDropdownCard extends HTMLElement {
   }
   _update() {
     if (!this._built) return; const v = this._cur(), it = this._list().find(o => o.value === v);
-    const txt = it ? it.label : (v == null ? '—' : this._fmt(this._hass.states[this._cfg.entity], v));
+    const co = (this._cfg.options || []).find(o => o && typeof o === 'object' && o.value === v);
+    const txt = it ? it.label : co?.label ? co.label : (v == null ? '—' : this._fmt(this._hass.states[this._cfg.entity], v));
     const b = this.shadowRoot.querySelector('[data-v]'); if (b.textContent !== txt) b.textContent = txt;
     this._pill.classList.toggle('dead', !this._hass.states[this._cfg.entity] || this._hass.states[this._cfg.entity].state === 'unavailable');
     if (this._menu) this._menu.querySelectorAll('.opt').forEach(o => o.classList.toggle('sel', o.dataset.v === String(v)));
@@ -2682,12 +2684,15 @@ class OneStopDropdownCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement('ha-form');
-      this._form.computeLabel = s => ({ entity: 'Entity', name: 'Label', icon: 'Icon', color: 'Colour', attribute: 'Use a list attribute instead (e.g. fan_speed_list)', options_text: 'Options to show, one per line as value = Label (empty = all)', height: 'Height (default 52)' }[s.name] || s.name);
+      this._form.computeLabel = s => ({ entity: 'Entity', name: 'Label', icon: 'Icon', color: 'Colour', attribute: 'Use a list attribute instead (e.g. fan_speed_list)', options_text: 'Options to show, one per line: value = Label   (optional: | hide when select.x is a, b)', height: 'Height (default 52)' }[s.name] || s.name);
       this._form.addEventListener('value-changed', e => {
         const v = { ...e.detail.value }, out = { type: this._config.type };
         for (const [k, x] of Object.entries(v)) if (k !== 'options_text' && x !== '' && x != null) out[k] = x;
         const lines = String(v.options_text || '').split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length) out.options = lines.map(l => { const [a, ...b] = l.split('='); return b.length ? { value: a.trim(), label: b.join('=').trim() } : a.trim(); });
+        if (lines.length) out.options = lines.map(l => {
+          const [main, cond] = l.split('|'); const [a, ...b] = main.split('='); const o = { value: a.trim() }; if (b.length) o.label = b.join('=').trim();
+          const m = /hide when\s+(\S+)\s+is\s+(.+)/i.exec(cond || ''); if (m) o.hide_when = { entity: m[1], state: m[2].split(',').map(x => x.trim()).filter(Boolean) };
+          return Object.keys(o).length === 1 ? o.value : o; });
         this._config = out; this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
       });
       this.appendChild(this._form);
@@ -2701,7 +2706,7 @@ class OneStopDropdownCardEditor extends HTMLElement {
       { name: 'options_text', selector: { text: { multiline: true } } },
     ];
     const c = this._config;
-    this._form.data = { ...c, options_text: (c.options || []).map(o => (typeof o === 'string' ? o : `${o.value} = ${o.label}`)).join('\n') };
+    this._form.data = { ...c, options_text: (c.options || []).map(o => (typeof o === 'string' ? o : `${o.value}${o.label != null ? ` = ${o.label}` : ''}${o.hide_when ? ` | hide when ${o.hide_when.entity} is ${[].concat(o.hide_when.state).join(', ')}` : ''}`)).join('\n') };
   }
 }
 if (!customElements.get(TAG)) customElements.define(TAG, OneStopDropdownCard);
