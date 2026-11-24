@@ -4775,7 +4775,7 @@ window.__oneStopStreaming = { SERVICES, JWQ, Recent };
  */
 (() => {
 'use strict';
-const VERSION = '2.1.0';
+const VERSION = '2.1.1';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -4852,7 +4852,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border:none;border-ra
 
 const CARD_CSS = `
 :host{display:block}
-ha-card{position:relative;border-radius:var(--om-radius,28px);padding:18px 16px 0;overflow:visible;border:1px solid rgba(255,255,255,.08);
+ha-card{position:relative;display:flex;flex-direction:column;min-height:calc(100dvh - var(--header-height,56px) - env(safe-area-inset-top) - 16px);border-radius:var(--om-radius,28px);padding:18px 16px 0;overflow:visible;border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(180deg,rgba(28,28,34,.94),rgba(16,16,20,.97));box-shadow:0 20px 50px rgba(0,0,0,.35)}
 ha-card.bg-none{background:transparent;border:none;box-shadow:none;padding-left:4px;padding-right:4px}
 ha-card.bg-glass{background:rgba(24,24,30,.45);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
@@ -4863,7 +4863,10 @@ ha-card.bg-glass{background:rgba(24,24,30,.45);-webkit-backdrop-filter:blur(24px
 .roomsel .ri ha-icon{--mdc-icon-size:20px;color:#fff}
 .roomsel .chev{--mdc-icon-size:20px;color:var(--t);flex:none}
 .roomsel.on{background:rgb(var(--ac));border-color:rgb(var(--ac))}.roomsel.on .ri{background:rgba(255,255,255,.25)}
-.view{min-height:340px;padding-bottom:22px}
+.view{flex:1;min-height:340px;padding-bottom:22px}
+.search-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:60px 10px 20px;color:var(--s);font-size:15px;text-align:center}
+.search-empty ha-icon{--mdc-icon-size:54px;color:rgba(var(--ac),.8)}
+.search-empty b{color:var(--t);font-size:19px;font-weight:700}
 .search{display:flex;align-items:center;gap:10px;padding:0 14px;height:calc(48px * var(--z,1));border-radius:14px;background:var(--fill)}
 .search ha-icon{--mdc-icon-size:22px;color:var(--s)}
 .search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--t);font:inherit;font-size:17px}
@@ -4896,7 +4899,7 @@ ha-card.bg-glass{background:rgba(24,24,30,.45);-webkit-backdrop-filter:blur(24px
 .chip.on{background:rgba(var(--ac),.9);color:#fff}
 .room.off{opacity:.45}
 /* dock */
-.dock{position:sticky;bottom:0;z-index:5;margin:0 -16px;padding:0 10px calc(8px + env(safe-area-inset-bottom));border-radius:0 0 var(--om-radius,28px) var(--om-radius,28px);
+.dock{position:sticky;bottom:0;margin-top:auto!important;z-index:5;margin:0 -16px;padding:0 10px calc(8px + env(safe-area-inset-bottom));border-radius:0 0 var(--om-radius,28px) var(--om-radius,28px);
   background:rgba(24,24,28,.88);-webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);border-top:1px solid var(--line)}
 ha-card.bg-none .dock{margin:0 -4px;border-radius:20px}
 .mini{display:grid;grid-template-columns:52px minmax(0,1fr) 44px 44px;gap:12px;align-items:center;padding:10px 6px 8px;width:100%}
@@ -5115,12 +5118,12 @@ class OneStopMusicCard extends HTMLElement {
   }
   _searchView(v) {
     v.innerHTML = `<div class="search">${ic('magnify')}<input type="search" placeholder="Artists, songs, albums, playlists" value="${esc(this._q || '')}" enterkeyhint="search"></div><div class="res"></div>`;
-    if (this._q) this._runSearch(this._q); else v.querySelector('.res').innerHTML = '<div class="empty">Search Apple Music and your library.</div>';
+    if (this._q) this._runSearch(this._q); else v.querySelector('.res').innerHTML = `<div class="search-empty">${ic('music-circle-outline')}<b>Find any song</b>Search Apple Music and your library for artists, songs, albums and playlists.</div>`;
     setTimeout(() => { if (!this._q) v.querySelector('input')?.focus({ preventScroll: true }); }, 50);
   }
   async _runSearch(term) {
     const box = this._root.querySelector('.res'); if (!box) return;
-    if (!term) { box.innerHTML = '<div class="empty">Search Apple Music and your library.</div>'; return; }
+    if (!term) { box.innerHTML = `<div class="search-empty">${ic('music-circle-outline')}<b>Find any song</b>Search Apple Music and your library for artists, songs, albums and playlists.</div>`; return; }
     const t = this._sTicket = (this._sTicket || 0) + 1;
     box.innerHTML = '<div class="spin"></div>';
     try {
