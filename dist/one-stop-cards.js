@@ -7496,7 +7496,7 @@ console.info(`%c ONE STOP SMOKER %c ${VERSION} `, 'color:#fff;background:#b45309
  */
 (() => {
 'use strict';
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const TAG = 'one-stop-security-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7548,6 +7548,9 @@ ha-card.alarm{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{box
 .chip.mo{background:rgba(96,165,250,.16);border-color:rgba(96,165,250,.5)}.chip.mo ha-icon{color:#60a5fa}
 .live{position:relative;margin:0 -6px;border-radius:18px;overflow:hidden;background:#0b0e12;border:1px solid rgba(211,224,238,.12);min-height:120px}
 .live>*{display:block}.live .wait{position:absolute;inset:0;display:grid;place-items:center;color:#5c6a79}.live .wait ha-icon{--mdc-icon-size:40px}
+.camgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--camw,340px)),1fr));gap:12px}
+.camgrid .cw{min-width:0}.camgrid .live{margin:0}
+.camname{display:flex;align-items:center;gap:7px;margin:0 2px 7px;font-size:13.5px;font-weight:650;color:#dbe4ee}.camname ha-icon{--mdc-icon-size:18px;color:#9fb0c0}.camname .mic{margin-left:auto;--mdc-icon-size:16px;color:#86efac}
 .camtabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:10px -2px 0;padding:0 2px}.camtabs::-webkit-scrollbar{display:none}
 .ct{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;justify-content:center;display:flex;align-items:center;gap:6px;height:40px;padding:0 8px;border-radius:12px;background:rgba(66,70,76,.32);border:1px solid rgba(211,224,238,.12);font-size:13.5px;font-weight:650}
 .ct ha-icon{--mdc-icon-size:18px;color:#9fb0c0}.ct.on{background:rgba(96,165,250,.22);border-color:rgba(96,165,250,.6)}.ct.on ha-icon{color:#93c5fd}
@@ -7607,7 +7610,7 @@ class OneStopSecurityCard extends HTMLElement {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig(hass) { const S = hass?.states || {}, k = Object.keys(S); return { alarm: k.find(x => x.startsWith('alarm_control_panel.')) || '', locks: k.filter(x => x.startsWith('lock.')).slice(0, 2) }; }
   setConfig(c) { this._cfg = { title: 'Security', codes: 'auto', ...c }; if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._sig = null; this._skel = false; this._camEls = {}; this._confirm = {}; if (this._hass) this._render(); }
-  set hass(h) { this._hass = h; this._render(); if (this._sheet?.update) this._sheet.update(); const el = this.shadowRoot?.querySelector('.live')?.firstElementChild; if (el && !el.classList.contains('wait')) el.hass = h; }
+  set hass(h) { this._hass = h; this._render(); if (this._sheet?.update) this._sheet.update(); this.shadowRoot?.querySelectorAll('.live').forEach(l => { const el = l.firstElementChild; if (el && !el.classList.contains('wait')) el.hass = h; }); }
   getCardSize() { return 8; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
   connectedCallback() { clearInterval(this._t); this._t = setInterval(() => this._refreshCams(), (this._cfg?.camera_refresh || 10) * 1000); }
@@ -7688,13 +7691,19 @@ class OneStopSecurityCard extends HTMLElement {
     const box = this.shadowRoot.querySelector('[data-cams]'), cams = this._list('cameras');
     if (!cams.length) { box.innerHTML = ''; return; }
     this._camEls = this._camEls || {};
+    if (this._cfg.camera_layout !== 'tabs') {
+      // every camera visible at once, each in its own window
+      box.innerHTML = `<div class="camgrid">${cams.map((k, i) => `<div class="cw"><div class="camname">${ic(k.scrypted ? 'doorbell-video' : 'cctv')}${esc(k.name || this._label(k.entity))}${k.scrypted ? `<ha-icon class="mic" icon="mdi:microphone"></ha-icon>` : ''}</div><div class="live" data-slot="${i}"><div class="wait">${ic('cctv')}</div></div></div>`).join('')}</div>`;
+      cams.forEach((_, i) => this._showCam(i, box.querySelector(`[data-slot="${i}"]`)));
+      return;
+    }
     box.innerHTML = `<div class="live"><div class="wait">${ic('cctv')}</div></div>${cams.length > 1 ? `<div class="camtabs">${cams.map((k, i) => `<button class="ct${i ? '' : ' on'}" data-i="${i}">${ic(k.scrypted ? 'doorbell-video' : 'cctv')}${esc(k.name || this._label(k.entity))}${k.scrypted ? ic('microphone').replace('<ha-icon', '<ha-icon class="mic"') : ''}</button>`).join('')}</div>` : ''}`;
     box.querySelectorAll('.ct').forEach(b => b.addEventListener('click', () => { box.querySelectorAll('.ct').forEach(x => x.classList.toggle('on', x === b)); this._showCam(+b.dataset.i); }));
     this._showCam(Math.min(this._camIdx || 0, cams.length - 1));
   }
-  async _showCam(i) {
-    const cams = this._list('cameras'), k = cams[i]; if (!k) return; this._camIdx = i;
-    const live = this.shadowRoot.querySelector('.live'), key = i + '|' + (k.scrypted || k.entity);
+  async _showCam(i, slot) {
+    const cams = this._list('cameras'), k = cams[i]; if (!k) return; if (!slot) this._camIdx = i;
+    const live = slot || this.shadowRoot.querySelector('.live'), key = i + '|' + (k.scrypted || k.entity);
     let el = this._camEls[key];
     if (!el) {
       const helpers = await window.loadCardHelpers();
@@ -7719,7 +7728,7 @@ class OneStopSecurityCard extends HTMLElement {
       }
       this._camEls[key] = el;
     }
-    if (this._camIdx !== i) return;
+    if (!slot && this._camIdx !== i) return;
     el.hass = this._hass; live.replaceChildren(el);   // the previous camera is detached, which stops its stream
   }
   _refreshCams(initial) {
@@ -7815,7 +7824,7 @@ class OneStopSecurityCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement('ha-form');
-      this._form.computeLabel = s => ({ title: 'Title', alarm: 'Alarm panel', locks: 'Locks', doors: 'Doors & windows', motion: 'Motion sensors', cameras: 'Cameras (first one shows first)', talk_text: 'Two-way talk through Scrypted, one per line: camera.entity = Scrypted device id', show_codes: 'Show door codes button (Lock Code Manager)', camera_refresh: 'Camera picture refresh (seconds)' }[s.name] || s.name);
+      this._form.computeLabel = s => ({ title: 'Title', alarm: 'Alarm panel', locks: 'Locks', doors: 'Doors & windows', motion: 'Motion sensors', cameras: 'Cameras', camera_layout: 'Camera layout', talk_text: 'Two-way talk through Scrypted, one per line: camera.entity = Scrypted device id', show_codes: 'Show door codes button (Lock Code Manager)', camera_refresh: 'Camera picture refresh (seconds)' }[s.name] || s.name);
       this._form.addEventListener('value-changed', e => {
         const v = { ...e.detail.value }, out = { type: this._config.type };
         for (const [k, x] of Object.entries(v)) if (!['show_codes', 'talk_text'].includes(k) && x !== '' && x != null && !(Array.isArray(x) && !x.length)) out[k] = x;
@@ -7835,6 +7844,7 @@ class OneStopSecurityCardEditor extends HTMLElement {
       { name: 'doors', selector: M('binary_sensor', ['door', 'window', 'opening', 'garage_door']) },
       { name: 'motion', selector: M('binary_sensor', ['motion', 'occupancy', 'presence']) },
       { name: 'cameras', selector: M('camera') },
+      { name: 'camera_layout', selector: { select: { mode: 'dropdown', options: [{ value: 'all', label: 'All at once' }, { value: 'tabs', label: 'One at a time (tabs)' }] } } },
       { name: 'talk_text', selector: { text: { multiline: true } } },
       { type: 'grid', name: '', schema: [{ name: 'show_codes', selector: { boolean: {} } }, { name: 'camera_refresh', selector: { number: { min: 3, max: 120, mode: 'box' } } }] },
     ];
