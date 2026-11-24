@@ -81,6 +81,18 @@ probes:
   - sensor.meater_probe_ab12cd34_
 ```
 
+### One Stop - Security card
+Everything security in one card: the alarm with Home / Away / Night buttons (keypad pop-up if your alarm needs a code), each lock with its door sensor and battery (unlock asks for a second tap), doors and windows, motion, and cameras (tap for a bigger view). If you use Lock Code Manager, a **Door codes** button opens a pop-up to turn codes on or off, show them, or change them.
+
+```yaml
+type: custom:one-stop-security-card
+alarm: alarm_control_panel.alarmo
+locks: [lock.front_door, lock.back_door]
+doors: [binary_sensor.front_door_contact, binary_sensor.back_door_contact]
+motion: [binary_sensor.hallway_motion]
+cameras: [camera.front_door]
+```
+
 ### One Stop - Music card
 A Sonos / Apple Music style player for Music Assistant speakers. Big artwork with a blurred backdrop, scrubber, shuffle/repeat and volume; a "Play on" sheet to switch rooms, group speakers and set each room's volume; and your library (recently played, playlists, favourite songs) with search. Tap anything to play it on the current room.
 
