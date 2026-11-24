@@ -2567,7 +2567,7 @@ console.info(`%c ONE STOP VEHICLE CARD %c ${VERSION} `, 'color:#fff;background:#
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const TAG = 'one-stop-dropdown-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2584,7 +2584,7 @@ button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-colo
 .pill.open{background:rgba(255,255,255,.12)}
 .ic{flex:none;width:calc(var(--dd-h,52px) - 12px);height:calc(var(--dd-h,52px) - 12px);border-radius:50%;display:grid;place-items:center;background:rgba(var(--dd-ac),.18)}
 .ic ha-icon{--mdc-icon-size:22px;color:rgb(var(--dd-ac))}
-.tx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.tx{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.2}
 .tx small{font-size:12.5px;font-weight:500;color:#b6c2d0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tx b{font-size:15.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chev{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);transition:transform .2s}
@@ -2593,7 +2593,7 @@ button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-colo
 .menu{position:fixed;z-index:9999;min-width:180px;padding:6px;border-radius:20px;background:rgba(28,34,46,.97);border:1px solid rgba(255,255,255,.12);
   box-shadow:0 18px 40px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);animation:pop .14s ease-out;max-height:60vh;overflow:auto}
 @keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.98)}}
-.opt{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:14px;font-size:15.5px;font-weight:600;color:#e8eef5}
+.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;box-sizing:border-box;padding:12px 14px;border-radius:14px;font-size:15.5px;font-weight:600;color:#e8eef5}
 .opt:active{background:rgba(255,255,255,.08)}
 .opt.sel{background:rgba(var(--dd-ac),.18);color:#fff}
 .opt .ck{margin-left:auto;--mdc-icon-size:20px;color:rgb(var(--dd-ac));visibility:hidden}
