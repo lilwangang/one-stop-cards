@@ -49,12 +49,16 @@ rest_command:
 ```
 
 ### One Stop - Media Player card
-One tidy player for any media player (TV, Apple TV, speaker): artwork with a blurred backdrop, now playing, play/pause/skip, progress, volume and mute, power, and a row of source/app buttons. Everything is set from the visual editor; show or hide each part and choose which sources appear.
+A room player in the One Stop glass style: room name and status, artwork, now playing, song progress, play/skip and volume. Two buttons in the corner open pop-ups:
+
+- **Choose music**: your saved playlists, favourites and inputs, with search. Tap one to play it.
+- **Group speakers**: tap rooms to add them to or remove them from the group, or use **Add all** / **Just this room**.
+
+It finds the speakers you can group with automatically. Every option is in the visual editor.
 
 ```yaml
 type: custom:one-stop-media-player-card
-entity: media_player.living_room_apple_tv
-color: blue
+entity: media_player.kitchen
 ```
 
 ### One Stop - Music card
