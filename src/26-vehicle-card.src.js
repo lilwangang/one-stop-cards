@@ -5,13 +5,13 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
 
 const COLORS = { green: '94,214,140', blue: '96,165,250', purple: '167,139,250', yellow: '250,204,21', teal: '45,212,191', red: '248,113,113', orange: '251,146,60', grey: '170,180,195' };
-const DEFAULTS = { name: '', image: '', image_entity: '', show_updated: true, updated_entity: '', confirm_all: false, haptics: true, actions: [], stats: [], schedule_switch: '', schedule_time: '' };
+const DEFAULTS = { name: '', image: '', image_entity: '', show_updated: true, updated_entity: '', confirm_all: false, haptics: true, actions: [], stats: [], schedule_switch: '', schedule_time: '', border: true, background_style: 'default' };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dead = st => !st || ['unknown', 'unavailable'].includes(st.state);
 const WORDS = { NO_ACTION_REQUIRED: 'OK', GOOD: 'Good', TRUE: 'Yes', FALSE: 'No', home: 'Home', not_home: 'Away', on: 'On', off: 'Off' };
@@ -22,8 +22,9 @@ const iconFor = id => ({ button: 'mdi:gesture-tap-button', script: 'mdi:play', l
 const CSS = `
 :host{display:block}
 ha-card{position:relative;overflow:hidden;padding:20px 16px 18px;border-radius:26px;color:#f2f6fa;font-family:var(--primary-font-family,Arial,sans-serif);container-type:inline-size;
-  background:radial-gradient(90% 46% at 50% 24%,rgba(64,120,200,.34),rgba(64,120,200,0) 70%),linear-gradient(180deg,#101a2b 0%,#0b111c 60%,#090e17 100%)!important;
-  border:1px solid rgba(255,255,255,.09);box-shadow:0 18px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+  background:var(--z-bg,radial-gradient(90% 46% at 50% 24%,rgba(64,120,200,.34),rgba(64,120,200,0) 70%),linear-gradient(180deg,#101a2b 0%,#0b111c 60%,#090e17 100%))!important;
+  -webkit-backdrop-filter:var(--z-blur,none);backdrop-filter:var(--z-blur,none);
+  border:var(--z-border,1px solid rgba(255,255,255,.09));box-shadow:var(--z-shadow,0 18px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06))}
 button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 h2{margin:0;font-weight:750;font-size:var(--z-title,24px);line-height:1.17;letter-spacing:-.5px}
@@ -46,7 +47,7 @@ h2{margin:0;font-weight:750;font-size:var(--z-title,24px);line-height:1.17;lette
 .sec{display:flex;align-items:center;gap:8px;font-size:var(--z-head,13.5px);font-weight:700;color:#dbe3ec;letter-spacing:.6px;text-transform:uppercase;margin:22px 4px 10px}
 .sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,0))}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.s{display:flex;align-items:center;gap:9px;min-height:72px;padding:10px 10px 10px 11px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
+.s{display:flex;align-items:center;gap:9px;min-height:72px;padding:10px 10px 10px 11px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,calc(.06 * var(--z-tile,1))),rgba(255,255,255,calc(.03 * var(--z-tile,1))));border:1px solid rgba(255,255,255,calc(.07 * var(--z-tile,1)));min-width:0}
 .s.wide{grid-column:1/-1}
 .s.pair{flex-direction:column;align-items:stretch;gap:9px;padding:12px}
 .s.pair:not(.wide){grid-row:span 2}
@@ -222,7 +223,24 @@ class OneStopVehicleCard extends HTMLElement {
     const c = this._cfg, px = (k, v) => (c[k] ? `${v}:${+c[k]}px;` : '');
     return px('caption_size', '--cap') + px('title_size', '--z-title') + px('main_button_size', '--z-main') + px('button_size', '--z-btn') + px('button_label_size', '--z-blabel')
       + px('heading_size', '--z-head') + px('tile_name_size', '--z-name') + px('tile_value_size', '--z-value') + px('tile_icon_size', '--z-icon') + px('tire_size', '--z-tire')
-      + (c.picture_size ? `--z-pic:${+c.picture_size}%;--z-picf:${+c.picture_size / 94};` : '');
+      + (c.picture_size ? `--z-pic:${+c.picture_size}%;--z-picf:${+c.picture_size / 94};` : '') + this._bg();
+  }
+  _bg() {
+    const c = this._cfg, st = c.background_style || 'default';
+    const rgb = (v, d) => (Array.isArray(v) && v.length === 3 ? v.join(',') : d);
+    const top = rgb(c.background_top, '16,26,43'), bot = rgb(c.background_bottom, '9,14,23'), glow = rgb(c.background_glow, '64,120,200');
+    const g = (c.glow_strength ?? 34) / 100, dim = (c.image_dim ?? 55) / 100;
+    let bg = '', out = '';
+    if (st === 'default' && !c.background_top && !c.background_bottom && !c.background_glow && c.glow_strength == null && !c.background_image) bg = '';
+    else if (st === 'solid') bg = `rgb(${top})`;
+    else if (st === 'glass') { bg = `rgba(${top},.45)`; out += '--z-blur:blur(18px) saturate(140%);'; }
+    else if (st === 'transparent') { bg = 'transparent'; out += '--z-border:none;--z-shadow:none;'; }
+    else bg = `radial-gradient(90% 46% at 50% 24%,rgba(${glow},${g}),rgba(${glow},0) 70%),linear-gradient(180deg,rgb(${top}) 0%,rgb(${bot}) 100%)`;
+    if (c.background_image) bg = `linear-gradient(rgba(0,0,0,${dim}),rgba(0,0,0,${dim})),url('${String(c.background_image).replace(/'/g, '%27')}') center/cover no-repeat${bg && st !== 'transparent' ? ',' + bg : ''}`;
+    if (bg) out += `--z-bg:${bg};`;
+    if (c.border === false) out += '--z-border:none;';
+    if (c.tile_strength != null) out += `--z-tile:${+c.tile_strength / 100};`;
+    return out;
   }
   _fit() {   // captions as big as the setting allows, all the same size, none cut off
     const max = +this._cfg.caption_size || 14.5, els = [...this.shadowRoot.querySelectorAll('.lv')]; if (!els.length) return;
@@ -325,7 +343,7 @@ const colorSel = { select: { mode: 'dropdown', options: Object.keys(COLORS).map(
 const LABELS = {
   name: 'Vehicle name', image: 'Picture (web address or /local/… file)', image_entity: 'Or use a picture entity', show_updated: 'Show "Updated … ago"', updated_entity: 'Sensor that shows when the data last updated',
   stats_title: 'Heading above the info tiles (optional)', confirm_all: 'Ask "are you sure?" before every button', haptics: 'Vibrate on press (phones)',
-  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', title_size: 'Vehicle name (default 24)', picture_size: 'Picture width (default 94%)', main_button_size: 'Big main button (default 17)', button_size: 'Round buttons (default 58)', button_label_size: 'Round button names (default 13)', heading_size: 'Section headings (default 13.5)', tile_name_size: 'Tile names (default 15.5)', tile_value_size: 'Tile values (default 17)', tile_icon_size: 'Tile icons (default 34)', tire_size: 'Tire pressures (default 18)', caption_size: 'Coloured caption next to a tile name (default 14.5, shrinks if it would get cut off)', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
+  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', background_style: 'Style', background_top: 'Top colour', background_bottom: 'Bottom colour (gradient)', background_glow: 'Glow colour', glow_strength: 'Glow strength (default 34%)', background_image: 'Background picture (web address or /local/… file, optional)', image_dim: 'Darken picture (default 55%)', tile_strength: 'Tile background strength (default 100%)', border: 'Card outline', title_size: 'Vehicle name (default 24)', picture_size: 'Picture width (default 94%)', main_button_size: 'Big main button (default 17)', button_size: 'Round buttons (default 58)', button_label_size: 'Round button names (default 13)', heading_size: 'Section headings (default 13.5)', tile_name_size: 'Tile names (default 15.5)', tile_value_size: 'Tile values (default 17)', tile_icon_size: 'Tile icons (default 34)', tire_size: 'Tire pressures (default 18)', caption_size: 'Coloured caption next to a tile name (default 14.5, shrinks if it would get cut off)', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
 };
 class OneStopVehicleCardEditor extends HTMLElement {
   setConfig(c) { this._config = { ...c }; this._draw(); }
@@ -397,6 +415,13 @@ class OneStopVehicleCardEditor extends HTMLElement {
       { type: 'expandable', name: '', title: 'Scheduled start', icon: 'mdi:clock-start', schema: [
         { name: 'schedule_switch', selector: { entity: { filter: [{ domain: 'automation' }, { domain: 'switch' }, { domain: 'input_boolean' }] } } },
         { name: 'schedule_time', selector: { entity: { filter: { domain: 'input_datetime' } } } }] },
+      { type: 'expandable', name: '', title: 'Background', icon: 'mdi:palette-outline', schema: [
+        { name: 'background_style', selector: { select: { mode: 'dropdown', options: [{ value: 'default', label: 'Gradient with glow (default)' }, { value: 'solid', label: 'Solid colour' }, { value: 'glass', label: 'Frosted glass' }, { value: 'transparent', label: 'No background' }] } } },
+        grid([{ name: 'background_top', selector: { color_rgb: {} } }, { name: 'background_bottom', selector: { color_rgb: {} } }]),
+        grid([{ name: 'background_glow', selector: { color_rgb: {} } }, { name: 'glow_strength', selector: { number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } } }]),
+        { name: 'background_image', selector: { text: {} } },
+        grid([{ name: 'image_dim', selector: { number: { min: 0, max: 90, mode: 'slider', unit_of_measurement: '%' } } }, { name: 'tile_strength', selector: { number: { min: 0, max: 300, step: 10, mode: 'slider', unit_of_measurement: '%' } } }]),
+        { name: 'border', selector: { boolean: {} } }] },
       { type: 'expandable', name: '', title: 'Sizes', icon: 'mdi:format-size', schema: [
         sz('title_size', 16, 36, 24), sz('picture_size', 50, 100, 94, '%'), sz('main_button_size', 13, 24, 17), sz('button_size', 40, 80, 58), sz('button_label_size', 10, 18, 13),
         sz('heading_size', 10, 20, 13.5), sz('tile_name_size', 11, 22, 15.5), sz('tile_value_size', 12, 26, 17), sz('caption_size', 11, 24, 14.5), sz('tile_icon_size', 24, 48, 34), sz('tire_size', 12, 26, 18)] },
