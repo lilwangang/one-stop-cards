@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const TAG = 'one-stop-mealie-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,6 +31,20 @@ function ingText(x, k = 1) {
   let u = x.unit; if (typeof u === 'string') { try { u = JSON.parse(u); } catch (e) { u = { name: u }; } }
   const main = [x.quantity ? numText(x.quantity * k) : '', u?.use_abbreviation && u.abbreviation ? u.abbreviation : u?.name, x.food?.name].filter(Boolean).join(' ');
   return x.note ? `${main} (${x.note})` : main;
+}
+
+/* ---------- ingredient → main food ("1 1/2 cups shredded cheddar cheese, divided" → "cheddar cheese") ---------- */
+const UNITS = 'cups?|c|tablespoons?|tbsp?s?|tbs|teaspoons?|tsps?|t|ounces?|oz|pounds?|lbs?|grams?|g|kg|kilograms?|ml|milliliters?|l|liters?|litres?|pinch(?:es)?|dash(?:es)?|cloves?|cans?|jars?|packages?|pkgs?|packets?|bags?|boxes?|sticks?|slices?|pieces?|heads?|bunch(?:es)?|sprigs?|stalks?|handfuls?|quarts?|qts?|pints?|pts?|gallons?|inch(?:es)?|containers?|bottles?|envelopes?|whole|large|medium|small|extra[- ]large|jumbo|heaping|level|scant|generous';
+const FLUFF = new Set(('chopped diced minced fresh freshly shredded grated sliced thinly thickly finely roughly coarsely divided softened melted cold warm hot room temperature packed lightly firmly optional taste to of the a an and for plus about approximately more needed as if cooked uncooked raw boneless skinless peeled seeded halved quartered cubed crushed rinsed drained trimmed beaten whisked sifted ' +
+  'gluten-free gluten free dairy-free dairy certified homemade store-bought storebought favorite favourite your any brand such like good quality pure organic low-sodium reduced-sodium unsalted salted plain prepared frozen thawed canned dried ripe fine').split(' '));
+const sing = w => w.length > 3 ? w.replace(/ies$/, 'y').replace(/(oes|ches|shes|sses)$/, m => m.slice(0, -2)).replace(/([^s])s$/, '$1') : w;
+const words = t => String(t || '').toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/[\s]+/).filter(Boolean).map(sing);
+function foodKey(text) {
+  let t = String(text || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\*.*$/, '').split(/,|;| - | – /)[0];
+  t = t.replace(/gluten[- ]free|dairy[- ]free|all[- ]purpose/g, ' ').split(/\s+or\s+/)[0];
+  t = t.replace(/[\d⅛¼⅓½⅔¾⅞/.\-–]+(?=\s|$)/g, ' ').replace(new RegExp('\\b(' + UNITS + ')\\b\\.?', 'g'), ' ');
+  const w = t.replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter(x => x && x.length > 1 && !FLUFF.has(x));
+  return w.slice(-3).join(' ').trim();
 }
 
 /* ---------- styles ---------- */
@@ -112,6 +126,13 @@ button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-colo
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.btns .btn{flex:1 1 140px}
 .desc{font-size:14px;line-height:1.5;color:#c5d0dc;margin:4px 2px 4px}
 .li{font-size:15px;line-height:1.45;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06)}.li.h{font-weight:700;color:#aebdcb;border:0;padding-top:12px}
+button.li{display:flex;align-items:center;gap:10px;width:100%}button.li span{flex:1;min-width:0;overflow-wrap:anywhere}
+button.li ha-icon{flex:none;--mdc-icon-size:18px;color:rgba(var(--ac),.85)}button.li:active{background:rgba(var(--ac),.12);border-radius:10px}
+.sec small{font-weight:500;text-transform:none;letter-spacing:0;color:#8f9cab;margin-left:6px}
+.fchips{flex:none;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.fchips button{height:36px;padding:0 14px;border-radius:999px;display:flex;align-items:center;font-size:14px;font-weight:600;background:rgba(255,255,255,.08);border:1px solid rgba(211,224,238,.16)}
+.fchips button.on{background:rgba(var(--ac),.32);border-color:rgba(var(--ac),.7)}
+.tile .mt{display:block;font-style:normal;font-size:12px;line-height:15px;color:rgb(var(--ac));margin-top:-3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* cook mode */
 .bar{flex:none;display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .seg{display:flex;background:rgba(255,255,255,.07);border-radius:12px;padding:3px;gap:3px;flex:1}
@@ -295,13 +316,70 @@ class OneStopMealieCard extends HTMLElement {
       <div class="btns"><button class="btn pri" data-x="cook">${ic('chef-hat')}Cook</button><button class="btn" data-x="tonight">${ic('calendar-plus')}Make tonight’s ${this._mealLabel()}</button><button class="btn" data-x="list">${ic('cart-plus')}Add to shopping list</button></div>
       <div class="msg" data-msg style="display:none"></div>
       ${r.description ? `<p class="desc">${esc(r.description)}</p>` : ''}
-      <div class="sec">Ingredients</div>${(r.ingredients || []).map(x => x.title && !x.food && !x.note ? `<div class="li h">${esc(x.title)}</div>` : `<div class="li">${esc(ingText(x))}</div>`).join('') || '<div class="msg">No ingredients listed.</div>'}
+      <div class="sec">Ingredients<small>Tap one to find other recipes with it</small></div>${(r.ingredients || []).map((x, i) => x.title && !x.food && !x.note ? `<div class="li h">${esc(x.title)}</div>` : foodKey(x.food?.name || ingText(x)) ? `<button class="li" data-ing="${i}"><span>${esc(ingText(x))}</span>${ic('magnify')}</button>` : `<div class="li">${esc(ingText(x))}</div>`).join('') || '<div class="msg">No ingredients listed.</div>'}
       <div class="sec">Steps</div>${(r.instructions || []).map((x, i) => `<div class="li"><b>${i + 1}.</b> ${esc(x.text)}</div>`).join('') || '<div class="msg">No steps listed.</div>'}
     </div>`;
     const msg = s.el.querySelector('[data-msg]'), say = (t, bad) => { msg.style.display = ''; msg.className = 'msg' + (bad ? ' err' : ''); msg.textContent = t; };
     s.el.querySelector('[data-x=cook]').addEventListener('click', () => this._cook(r));
     s.el.querySelector('[data-x=tonight]').addEventListener('click', async e => { const b = e.currentTarget; b.setAttribute('disabled', ''); say('Planning…'); try { await this._plan(this._date(), r.recipe_id); say(`Planned for tonight’s ${this._mealLabel()}.`); this._load(true); } catch (err) { say(err.message, true); } b.removeAttribute('disabled'); });
     s.el.querySelector('[data-x=list]').addEventListener('click', () => this._toList(r, () => this._recipeSheet(r.recipe_id, back, r)));
+    s.el.querySelectorAll('[data-ing]').forEach(b => b.addEventListener('click', () => {
+      const x = r.ingredients[+b.dataset.ing];
+      this._withIngredient(foodKey(x.food?.name || ingText(x)), r, () => this._recipeSheet(r.recipe_id, back, r));
+    }));
+  }
+
+  /* ----- recipes that use an ingredient ----- */
+  async _ingIndex(progress) {
+    const KEY = 'one-stop-mealie-ing:' + (await this._entry());
+    let idx = this._idx;
+    if (!idx) { try { idx = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { idx = null; } }
+    idx = idx && idx.v === 1 ? idx : { v: 1, r: {} };
+    if (this._idx && Date.now() - (this._idxAt || 0) < 120000) return this._idx;
+    const list = (await this._m('get_recipes', { result_limit: 1000 }))?.recipes?.items || [];
+    const live = new Set(list.map(x => x.recipe_id));
+    for (const id of Object.keys(idx.r)) if (!live.has(id)) delete idx.r[id];
+    const todo = list.filter(x => !idx.r[x.recipe_id] || idx.r[x.recipe_id].u !== (x.date_updated || x.date_added || ''));
+    let done = 0;
+    const work = async () => { for (let x; (x = todo.shift());) {
+      try { const d = (await this._m('get_recipe', { recipe_id: x.recipe_id }))?.recipe;
+        if (d) idx.r[x.recipe_id] = { n: d.name, t: d.total_time || d.perform_time || '', u: x.date_updated || x.date_added || '', i: (d.ingredients || []).filter(y => !(y.title && !y.food && !y.note)).map(y => [y.food?.name, y.note, y.display].filter(Boolean).join(' ')) };
+      } catch (e) {}
+      progress && progress(++done, done + todo.length);
+    } };
+    if (todo.length) { await Promise.all(Array.from({ length: 6 }, work)); try { localStorage.setItem(KEY, JSON.stringify(idx)); } catch (e) {} }
+    this._idx = idx; this._idxAt = Date.now(); return idx;
+  }
+  _withIngredient(key, from, back) {
+    const s = sheet(this, { icon: 'food-apple-outline', title: 'Recipes with ' + key, sub: from ? 'From ' + from.name : '', tall: true, onBack: back });
+    const all = words(key), chipsFor = k => [...new Set([k, ...(all.length > 1 ? words(k).filter(w => w.length > 2) : [])])];
+    s.el.innerHTML = `<div class="fchips"></div><input class="in" type="search" placeholder="Any ingredient…" aria-label="Ingredient" value="${esc(key)}"><div class="body"><div class="tiles"><div class="msg" style="grid-column:1/-1">Looking through your recipes…</div></div></div>`;
+    const grid = s.el.querySelector('.tiles'), input = s.el.querySelector('input'), chipBox = s.el.querySelector('.fchips');
+    const chips = chipsFor(key); let t;
+    const run = async q => {
+      chipBox.style.display = chips.length > 1 ? '' : 'none';
+      chipBox.innerHTML = chips.map(c => `<button data-c="${esc(c)}" class="${c === q ? 'on' : ''}">${esc(c)}</button>`).join('');
+      s.root.querySelector('h3').firstChild.textContent = 'Recipes with ' + q;
+      const need = words(q); if (!need.length) { grid.innerHTML = '<div class="msg" style="grid-column:1/-1">Type an ingredient.</div>'; return; }
+      let idx;
+      try { idx = await this._ingIndex((a, b) => { if (!s.closed && b > 8) grid.innerHTML = `<div class="msg" style="grid-column:1/-1">Reading your recipes… ${a} of ${b}</div>`; }); }
+      catch (e) { grid.innerHTML = '<div class="msg err" style="grid-column:1/-1">Couldn’t read your recipes.</div>'; return; }
+      if (s.closed || input.value.trim().toLowerCase() !== q) return;
+      const hits = [];
+      for (const [id, x] of Object.entries(idx.r)) {
+        if (from && id === from.recipe_id) continue;
+        const line = x.i.find(l => { const w = new Set(words(l)); return need.every(n => w.has(n)); });
+        if (line) hits.push([id, x, line]);
+      }
+      hits.sort((a, b) => a[1].n.localeCompare(b[1].n));
+      grid.innerHTML = hits.length ? hits.map(([id, x, line]) => { const img = this._img(id);
+        return `<button class="tile" data-id="${esc(id)}"><span class="cv">${ic('silverware-fork-knife')}${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><span class="t">${esc(x.n)}</span><em class="mt">${esc(line.replace(/\s+/g, ' ').slice(0, 80))}</em></button>`; }).join('')
+        : `<div class="msg" style="grid-column:1/-1">No other recipes use “${esc(q)}”.${chips.length > 1 ? ' Try a shorter word above.' : ''}</div>`;
+    };
+    chipBox.addEventListener('click', e => { const c = e.target.closest('[data-c]'); if (!c) return; input.value = c.dataset.c; run(c.dataset.c); });
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => run(input.value.trim().toLowerCase()), 300); });
+    grid.addEventListener('click', e => { const tile = e.target.closest('.tile'); if (tile) this._recipeSheet(tile.dataset.id, () => this._withIngredient(input.value.trim().toLowerCase() || key, from, back)); });
+    run(key);
   }
   _toList(r, back) {
     const ent = this._shopping(); const s = sheet(this, { icon: 'cart-plus', title: 'Add to shopping list', sub: r.name, tall: true, onBack: back });
