@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 const TAG = 'one-stop-security-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -55,6 +55,13 @@ ha-card.alarm{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{box
 .chip ha-icon{--mdc-icon-size:18px;color:#8fa0b2}.chip small{font-weight:400;color:#9fb0c0;font-size:11.5px}
 .chip.hot{background:rgba(251,146,60,.16);border-color:rgba(251,146,60,.5)}.chip.hot ha-icon{color:#fb923c}
 .chip.mo{background:rgba(96,165,250,.16);border-color:rgba(96,165,250,.5)}.chip.mo ha-icon{color:#60a5fa}
+.live{position:relative;margin:0 -6px;border-radius:18px;overflow:hidden;background:#0b0e12;border:1px solid rgba(211,224,238,.12);min-height:120px}
+.live>*{display:block}.live .wait{position:absolute;inset:0;display:grid;place-items:center;color:#5c6a79}.live .wait ha-icon{--mdc-icon-size:40px}
+.camtabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:10px -2px 0;padding:0 2px}.camtabs::-webkit-scrollbar{display:none}
+.ct{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;justify-content:center;display:flex;align-items:center;gap:6px;height:40px;padding:0 8px;border-radius:12px;background:rgba(66,70,76,.32);border:1px solid rgba(211,224,238,.12);font-size:13.5px;font-weight:650}
+.ct ha-icon{--mdc-icon-size:18px;color:#9fb0c0}.ct.on{background:rgba(96,165,250,.22);border-color:rgba(96,165,250,.6)}.ct.on ha-icon{color:#93c5fd}
+.ct .mic{--mdc-icon-size:15px;color:#86efac}
+.al.slim{padding:10px 12px;gap:12px}.al.slim .sh{width:44px;height:44px;border-radius:14px}.al.slim .sh ha-icon{--mdc-icon-size:25px}.al.slim .tx b{font-size:18px;line-height:22px}
 .cams{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}
 .cam{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#11151a;border:1px solid rgba(211,224,238,.12);display:grid;place-items:center;color:#5c6a79}
 .cam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.cam>ha-icon{--mdc-icon-size:34px}
@@ -108,8 +115,8 @@ function sheet(card, { icon, title, sub = '', wide = false }) {
 class OneStopSecurityCard extends HTMLElement {
   static getConfigElement() { return document.createElement(EDITOR_TAG); }
   static getStubConfig(hass) { const S = hass?.states || {}, k = Object.keys(S); return { alarm: k.find(x => x.startsWith('alarm_control_panel.')) || '', locks: k.filter(x => x.startsWith('lock.')).slice(0, 2) }; }
-  setConfig(c) { this._cfg = { title: 'Security', codes: 'auto', ...c }; if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._sig = null; this._confirm = {}; if (this._hass) this._render(); }
-  set hass(h) { this._hass = h; this._render(); if (this._sheet?.update) this._sheet.update(); }
+  setConfig(c) { this._cfg = { title: 'Security', codes: 'auto', ...c }; if (!this.shadowRoot) this.attachShadow({ mode: 'open' }); this._sig = null; this._skel = false; this._camEls = {}; this._confirm = {}; if (this._hass) this._render(); }
+  set hass(h) { this._hass = h; this._render(); if (this._sheet?.update) this._sheet.update(); const el = this.shadowRoot?.querySelector('.live')?.firstElementChild; if (el && !el.classList.contains('wait')) el.hass = h; }
   getCardSize() { return 8; }
   getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 12 }; }
   connectedCallback() { clearInterval(this._t); this._t = setInterval(() => this._refreshCams(), (this._cfg?.camera_refresh || 10) * 1000); }
@@ -161,10 +168,16 @@ class OneStopSecurityCard extends HTMLElement {
     const modes = [[AF.HOME, 'arm_home', 'armed_home', 'home', 'Home'], [AF.AWAY, 'arm_away', 'armed_away', 'shield-lock', 'Away'], [AF.NIGHT, 'arm_night', 'armed_night', 'weather-night', 'Night'], [AF.VACATION, 'arm_vacation', 'armed_vacation', 'airplane', 'Vacation']].filter(m => f & m[0]);
     const buttons = armed || ['arming', 'pending', 'triggered'].includes(ast) ? [['disarm', null, 'shield-off', 'Disarm', 'dis']] : modes.map(m => [m[1], m[2], m[3], m[4], ast === m[2] ? 'on' : '']);
     const alarmSub = ast === 'triggered' ? 'Something set off the alarm' : ast === 'pending' ? 'Disarm now or the alarm goes off' : ast === 'arming' ? 'Leave now · doors are being watched' : armed ? `Since ${ago(al.last_changed)}` : (al?.attributes?.open_sensors ? 'Some sensors are open' : 'Ready to arm');
-    R.innerHTML = `<style>${CSS}</style><ha-card class="${ast === 'triggered' ? 'alarm' : ''}" style="--al:${A ? A[2] : '169,191,210'}">
+    if (!this._skel) {
+      R.innerHTML = `<style>${CSS}</style><ha-card><div data-top></div><div data-cams></div><div data-rest></div></ha-card>`;
+      this._skel = true; this._buildCams();
+    }
+    const card = R.querySelector('ha-card'); card.className = ast === 'triggered' ? 'alarm' : ''; card.style.setProperty('--al', A ? A[2] : '169,191,210');
+    R.querySelector('[data-top]').innerHTML = `
       <div class="hd"><div style="min-width:0"><h2>${esc(c.title)}</h2><p><span class="dot ${problems.length ? 'warn' : ''}"></span>${esc(status)}</p></div>
-        ${codes.length ? `<button class="sq" data-a="codes" aria-label="Door codes">${ic('dialpad')}</button>` : '<span></span>'}</div>
-      ${A ? `<div class="al"><span class="sh">${ic(A[0])}</span><div class="tx"><small>Alarm</small><b>${esc(A[1])}</b><span>${esc(alarmSub)}</span></div></div>
+        ${codes.length ? `<button class="sq" data-a="codes" aria-label="Door codes">${ic('dialpad')}</button>` : '<span></span>'}</div>`;
+    R.querySelector('[data-rest]').innerHTML = `
+      ${A ? `<div class="sec">${ic('shield-outline')}Alarm</div><div class="al slim"><span class="sh">${ic(A[0])}</span><div class="tx"><small>Alarm</small><b>${esc(A[1])}</b><span>${esc(alarmSub)}</span></div></div>
         <div class="arm" style="--n:${buttons.length}">${buttons.map(b => `<button class="ab ${b[4]}" data-arm="${b[0]}">${ic(b[2])}${b[3]}</button>`).join('')}</div>` : ''}
       ${locks.length ? `<div class="sec">${ic('lock-outline')}Locks<em>${unlocked.length ? `${unlocked.length} unlocked` : 'All locked'}</em></div><div class="locks">${locks.map(l => {
         const dead = !l.st || DEAD.includes(l.st), busy = ['locking', 'unlocking', 'opening'].includes(l.st), locked = l.st === 'locked', sure = this._confirm[l.entity];
@@ -174,13 +187,49 @@ class OneStopSecurityCard extends HTMLElement {
           ${dead ? '' : `<button class="go ${sure ? 'sure' : ''}" data-lock="${esc(l.entity)}">${ic(locked ? 'lock-open-variant-outline' : 'lock')}${locked ? (sure ? 'Tap again to unlock' : 'Unlock') : 'Lock'}</button>`}</div>`; }).join('')}</div>` : ''}
       ${doors.length ? `<div class="sec">${ic('door')}Doors &amp; windows<em>${openDoors.length ? `${openDoors.length} open` : 'All closed'}</em></div><div class="chips">${doors.map(d => `<span class="chip ${d.st === 'on' ? 'hot' : ''}">${ic(d.st === 'on' ? (/window/i.test(d.name) ? 'window-open-variant' : 'door-open') : (/window/i.test(d.name) ? 'window-closed-variant' : 'door-closed'))}${esc(d.name)}${d.st === 'on' ? ` <small>open ${ago(d.changed)}</small>` : ''}</span>`).join('')}</div>` : ''}
       ${motion.length ? `<div class="sec">${ic('motion-sensor')}Motion<em>${moving.length ? `${moving.length} now` : 'All quiet'}</em></div><div class="chips">${motion.map(m => `<span class="chip ${m.st === 'on' ? 'mo' : ''}">${ic(m.st === 'on' ? 'motion-sensor' : 'motion-sensor-off')}${esc(m.name)} <small>${m.st === 'on' ? 'now' : ago(m.changed)}</small></span>`).join('')}</div>` : ''}
-      ${cams.length ? `<div class="sec">${ic('cctv')}Cameras<em>Tap to watch live</em></div><div class="cams">${cams.map(k => `<button class="cam" data-cam="${esc(k.entity)}">${ic('cctv')}<img alt="" data-snap="${esc(k.entity)}"><span class="lbl"><i></i>${esc(k.name || this._label(k.entity))}${ic('play-circle-outline')}</span></button>`).join('')}</div>` : ''}
-    </ha-card>`;
+    `;
     R.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => this._arm(b.dataset.arm)));
     R.querySelectorAll('[data-lock]').forEach(b => b.addEventListener('click', () => this._lock(b.dataset.lock)));
-    R.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => this._live(b.dataset.cam)));
     R.querySelector('[data-a=codes]')?.addEventListener('click', () => this._codesSheet());
-    this._refreshCams(true);
+  }
+  /* ----- live cameras: one big live view, tabs to switch; only the chosen camera streams ----- */
+  _buildCams() {
+    const box = this.shadowRoot.querySelector('[data-cams]'), cams = this._list('cameras');
+    if (!cams.length) { box.innerHTML = ''; return; }
+    this._camEls = this._camEls || {};
+    box.innerHTML = `<div class="live"><div class="wait">${ic('cctv')}</div></div>${cams.length > 1 ? `<div class="camtabs">${cams.map((k, i) => `<button class="ct${i ? '' : ' on'}" data-i="${i}">${ic(k.scrypted ? 'doorbell-video' : 'cctv')}${esc(k.name || this._label(k.entity))}${k.scrypted ? ic('microphone').replace('<ha-icon', '<ha-icon class="mic"') : ''}</button>`).join('')}</div>` : ''}`;
+    box.querySelectorAll('.ct').forEach(b => b.addEventListener('click', () => { box.querySelectorAll('.ct').forEach(x => x.classList.toggle('on', x === b)); this._showCam(+b.dataset.i); }));
+    this._showCam(Math.min(this._camIdx || 0, cams.length - 1));
+  }
+  async _showCam(i) {
+    const cams = this._list('cameras'), k = cams[i]; if (!k) return; this._camIdx = i;
+    const live = this.shadowRoot.querySelector('.live'), key = i + '|' + (k.scrypted || k.entity);
+    let el = this._camEls[key];
+    if (!el) {
+      const helpers = await window.loadCardHelpers();
+      const useScrypted = k.scrypted && customElements.get('scrypted-camera-card');
+      const conf = useScrypted ? { type: 'custom:scrypted-camera-card', device: String(k.scrypted), name: k.name || this._label(k.entity), autoplay: true, aspect_ratio: '16 / 9' }
+        : { type: 'picture-entity', entity: k.entity, camera_view: 'live', show_name: false, show_state: false, tap_action: { action: 'none' }, hold_action: { action: 'none' } };
+      const player = await helpers.createCardElement(conf); player.style.cssText = '--ha-card-border-radius:0;--ha-card-border-width:0;--ha-card-box-shadow:none;';
+      if (useScrypted) el = player;
+      else {
+        // HA live stream with a refreshing picture underneath until the video actually plays
+        el = document.createElement('div'); el.style.cssText = 'position:relative;aspect-ratio:16/9;background:#0b0e12';
+        const img = document.createElement('img'); img.alt = ''; img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+        player.style.cssText += 'position:absolute;inset:0;opacity:0;transition:opacity .3s';
+        el.append(img, player); el._player = player;
+        const deep = (r, o = []) => { r.querySelectorAll('*').forEach(x => { if (x.tagName === 'VIDEO') o.push(x); if (x.shadowRoot) deep(x.shadowRoot, o); }); return o; };
+        const snap = () => { const p = this._s(k.entity)?.attributes?.entity_picture; if (p) { const n = new Image(); n.onload = () => { img.src = n.src; }; n.src = p + (p.includes('?') ? '&' : '?') + 't=' + Date.now(); } };
+        snap(); el._timer = setInterval(() => {
+          if (!el.isConnected) return;
+          if (deep(player.shadowRoot || player).some(v => v.readyState >= 2 && v.videoWidth)) { player.style.opacity = 1; } else snap();
+        }, 2000);
+        Object.defineProperty(el, 'hass', { set: h => { player.hass = h; }, configurable: true });
+      }
+      this._camEls[key] = el;
+    }
+    if (this._camIdx !== i) return;
+    el.hass = this._hass; live.replaceChildren(el);   // the previous camera is detached, which stops its stream
   }
   _refreshCams(initial) {
     const R = this.shadowRoot; if (!R || !this._hass || (!initial && document.hidden)) return;
@@ -275,10 +324,12 @@ class OneStopSecurityCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement('ha-form');
-      this._form.computeLabel = s => ({ title: 'Title', alarm: 'Alarm panel', locks: 'Locks', doors: 'Doors & windows', motion: 'Motion sensors', cameras: 'Cameras', show_codes: 'Show door codes button (Lock Code Manager)', camera_refresh: 'Camera picture refresh (seconds)' }[s.name] || s.name);
+      this._form.computeLabel = s => ({ title: 'Title', alarm: 'Alarm panel', locks: 'Locks', doors: 'Doors & windows', motion: 'Motion sensors', cameras: 'Cameras (first one shows first)', talk_text: 'Two-way talk through Scrypted, one per line: camera.entity = Scrypted device id', show_codes: 'Show door codes button (Lock Code Manager)', camera_refresh: 'Camera picture refresh (seconds)' }[s.name] || s.name);
       this._form.addEventListener('value-changed', e => {
         const v = { ...e.detail.value }, out = { type: this._config.type };
-        for (const [k, x] of Object.entries(v)) if (k !== 'show_codes' && x !== '' && x != null && !(Array.isArray(x) && !x.length)) out[k] = x;
+        for (const [k, x] of Object.entries(v)) if (!['show_codes', 'talk_text'].includes(k) && x !== '' && x != null && !(Array.isArray(x) && !x.length)) out[k] = x;
+        const talk = {}; String(v.talk_text || '').split('\n').forEach(l => { const [a, b] = l.split('=').map(s => (s || '').trim()); if (a && b) talk[a] = b; });
+        if (out.cameras) out.cameras = out.cameras.map(id => { const old = (this._config.cameras || []).find(c => (c.entity || c) === id); const o = { ...(typeof old === 'object' ? old : {}), entity: id }; if (talk[id]) o.scrypted = talk[id]; else delete o.scrypted; return Object.keys(o).length === 1 ? id : o; });
         if (v.show_codes === false) out.codes = false; else if (Array.isArray(this._config.codes)) out.codes = this._config.codes;
         if (this._config.lock_doors) out.lock_doors = this._config.lock_doors;
         this._config = out; this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: out }, bubbles: true, composed: true }));
@@ -293,10 +344,11 @@ class OneStopSecurityCardEditor extends HTMLElement {
       { name: 'doors', selector: M('binary_sensor', ['door', 'window', 'opening', 'garage_door']) },
       { name: 'motion', selector: M('binary_sensor', ['motion', 'occupancy', 'presence']) },
       { name: 'cameras', selector: M('camera') },
+      { name: 'talk_text', selector: { text: { multiline: true } } },
       { type: 'grid', name: '', schema: [{ name: 'show_codes', selector: { boolean: {} } }, { name: 'camera_refresh', selector: { number: { min: 3, max: 120, mode: 'box' } } }] },
     ];
     const c = this._config, ids = k => (c[k] || []).map(x => typeof x === 'string' ? x : x.entity);
-    this._form.data = { ...c, locks: ids('locks'), doors: ids('doors'), motion: ids('motion'), cameras: ids('cameras'), show_codes: c.codes !== false };
+    this._form.data = { ...c, locks: ids('locks'), doors: ids('doors'), motion: ids('motion'), cameras: ids('cameras'), show_codes: c.codes !== false, talk_text: (c.cameras || []).filter(x => x && x.scrypted).map(x => `${x.entity} = ${x.scrypted}`).join('\n') };
   }
 }
 if (!customElements.get(TAG)) customElements.define(TAG, OneStopSecurityCard);
