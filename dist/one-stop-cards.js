@@ -7496,7 +7496,7 @@ console.info(`%c ONE STOP SMOKER %c ${VERSION} `, 'color:#fff;background:#b45309
  */
 (() => {
 'use strict';
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const TAG = 'one-stop-security-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7556,6 +7556,14 @@ ha-card.alarm{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{box
 .ct ha-icon{--mdc-icon-size:18px;color:#9fb0c0}.ct.on{background:rgba(96,165,250,.22);border-color:rgba(96,165,250,.6)}.ct.on ha-icon{color:#93c5fd}
 .ct .mic{--mdc-icon-size:15px;color:#86efac}
 .al.slim{padding:10px 12px;gap:12px}.al.slim .sh{width:44px;height:44px;border-radius:14px}.al.slim .sh ha-icon{--mdc-icon-size:25px}.al.slim .tx b{font-size:18px;line-height:22px}
+.codes{display:grid;gap:8px}
+.cd{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;border-radius:16px;border:1px solid rgba(211,224,238,.14);background:rgba(66,70,76,.26)}
+.cd.on{border-color:rgba(94,214,140,.45);background:rgba(94,214,140,.08)}
+.cdn{flex:1;min-width:0;display:flex;align-items:center;gap:12px}.cdn .av{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);font-weight:700;font-size:16px}
+.cd.on .av{background:rgba(94,214,140,.22);color:#86efac}.cdn .t{min-width:0;font-size:15.5px;font-weight:650}.cdn .t small{display:block;font-size:12px;font-weight:500;color:#aebdcb;margin-top:1px}
+.tg{flex:none;width:52px;height:32px;border-radius:16px;background:rgba(255,255,255,.16);position:relative;transition:background .15s}.tg:after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .15s}
+.tg.on{background:#22c55e}.tg.on:after{transform:translateX(20px)}
+.mng{height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14.5px;font-weight:650;background:rgba(255,255,255,.07);border:1px solid rgba(211,224,238,.14)}.mng ha-icon{--mdc-icon-size:19px}
 .cams{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}
 .cam{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#11151a;border:1px solid rgba(211,224,238,.12);display:grid;place-items:center;color:#5c6a79}
 .cam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.cam>ha-icon{--mdc-icon-size:34px}
@@ -7654,7 +7662,7 @@ class OneStopSecurityCard extends HTMLElement {
     const cams = this._list('cameras');
     const openDoors = doors.filter(d => d.st === 'on'), unlocked = locks.filter(l => l.st && !['locked', ...DEAD].includes(l.st)), moving = motion.filter(m => m.st === 'on');
     const codes = this._codes();
-    const sig = JSON.stringify([ast, al?.attributes?.open_sensors, locks.map(l => [l.st, l.door, l.bat]), doors.map(d => d.st), motion.map(m => [m.st, Math.floor((Date.now() - new Date(m.changed)) / 60000)]), cams, this._confirm, codes.length]);
+    const sig = JSON.stringify([ast, al?.attributes?.open_sensors, locks.map(l => [l.st, l.door, l.bat]), doors.map(d => d.st), motion.map(m => [m.st, Math.floor((Date.now() - new Date(m.changed)) / 60000)]), cams, this._confirm, codes.map(x => [this._s(x.enabled)?.state, this._s(x.name_entity)?.state])]);
     if (sig === this._sig) return; this._sig = sig;
     const problems = [unlocked.length ? `${unlocked.length} unlocked` : '', openDoors.length ? `${openDoors.length} open` : ''].filter(Boolean);
     const status = problems.length ? problems.join(' · ') : [locks.length ? 'All locked' : '', doors.length ? 'doors closed' : ''].filter(Boolean).join(' · ') || 'All good';
@@ -7663,16 +7671,17 @@ class OneStopSecurityCard extends HTMLElement {
     const buttons = armed || ['arming', 'pending', 'triggered'].includes(ast) ? [['disarm', null, 'shield-off', 'Disarm', 'dis']] : modes.map(m => [m[1], m[2], m[3], m[4], ast === m[2] ? 'on' : '']);
     const alarmSub = ast === 'triggered' ? 'Something set off the alarm' : ast === 'pending' ? 'Disarm now or the alarm goes off' : ast === 'arming' ? 'Leave now · doors are being watched' : armed ? `Since ${ago(al.last_changed)}` : (al?.attributes?.open_sensors ? 'Some sensors are open' : 'Ready to arm');
     if (!this._skel) {
-      R.innerHTML = `<style>${CSS}</style><ha-card><div data-top></div><div data-cams></div><div data-rest></div></ha-card>`;
+      R.innerHTML = `<style>${CSS}</style><ha-card><div data-top></div><div data-alarm></div><div data-cams></div><div data-rest></div></ha-card>`;
       this._skel = true; this._buildCams();
     }
     const card = R.querySelector('ha-card'); card.className = ast === 'triggered' ? 'alarm' : ''; card.style.setProperty('--al', A ? A[2] : '169,191,210');
     R.querySelector('[data-top]').innerHTML = `
       <div class="hd"><div style="min-width:0"><h2>${esc(c.title)}</h2><p><span class="dot ${problems.length ? 'warn' : ''}"></span>${esc(status)}</p></div>
-        ${codes.length ? `<button class="sq" data-a="codes" aria-label="Door codes">${ic('dialpad')}</button>` : '<span></span>'}</div>`;
+        <span></span></div>`;
+    R.querySelector('[data-alarm]').innerHTML = `
+      ${A ? `<div class="al slim" style="margin-bottom:10px"><span class="sh">${ic(A[0])}</span><div class="tx"><small>Alarm</small><b>${esc(A[1])}</b><span>${esc(alarmSub)}</span></div></div>
+        <div class="arm" style="--n:${buttons.length}">${buttons.map(b => `<button class="ab ${b[4]}" data-arm="${b[0]}">${ic(b[2])}${b[3]}</button>`).join('')}</div><div style="height:14px"></div>` : ''}`;
     R.querySelector('[data-rest]').innerHTML = `
-      ${A ? `<div class="sec">${ic('shield-outline')}Alarm</div><div class="al slim"><span class="sh">${ic(A[0])}</span><div class="tx"><small>Alarm</small><b>${esc(A[1])}</b><span>${esc(alarmSub)}</span></div></div>
-        <div class="arm" style="--n:${buttons.length}">${buttons.map(b => `<button class="ab ${b[4]}" data-arm="${b[0]}">${ic(b[2])}${b[3]}</button>`).join('')}</div>` : ''}
       ${locks.length ? `<div class="sec">${ic('lock-outline')}Locks<em>${unlocked.length ? `${unlocked.length} unlocked` : 'All locked'}</em></div><div class="locks">${locks.map(l => {
         const dead = !l.st || DEAD.includes(l.st), busy = ['locking', 'unlocking', 'opening'].includes(l.st), locked = l.st === 'locked', sure = this._confirm[l.entity];
         const word = dead ? 'Offline' : busy ? l.st.replace(/^./, x => x.toUpperCase()) + '…' : locked ? 'Locked' : l.st === 'jammed' ? 'Jammed' : 'Unlocked';
@@ -7681,10 +7690,15 @@ class OneStopSecurityCard extends HTMLElement {
           ${dead ? '' : `<button class="go ${sure ? 'sure' : ''}" data-lock="${esc(l.entity)}">${ic(locked ? 'lock-open-variant-outline' : 'lock')}${locked ? (sure ? 'Tap again to unlock' : 'Unlock') : 'Lock'}</button>`}</div>`; }).join('')}</div>` : ''}
       ${doors.length ? `<div class="sec">${ic('door')}Doors &amp; windows<em>${openDoors.length ? `${openDoors.length} open` : 'All closed'}</em></div><div class="chips">${doors.map(d => `<span class="chip ${d.st === 'on' ? 'hot' : ''}">${ic(d.st === 'on' ? (/window/i.test(d.name) ? 'window-open-variant' : 'door-open') : (/window/i.test(d.name) ? 'window-closed-variant' : 'door-closed'))}${esc(d.name)}${d.st === 'on' ? ` <small>open ${ago(d.changed)}</small>` : ''}</span>`).join('')}</div>` : ''}
       ${motion.length ? `<div class="sec">${ic('motion-sensor')}Motion<em>${moving.length ? `${moving.length} now` : 'All quiet'}</em></div><div class="chips">${motion.map(m => `<span class="chip ${m.st === 'on' ? 'mo' : ''}">${ic(m.st === 'on' ? 'motion-sensor' : 'motion-sensor-off')}${esc(m.name)} <small>${m.st === 'on' ? 'now' : ago(m.changed)}</small></span>`).join('')}</div>` : ''}
+      ${codes.length ? `<div class="sec">${ic('dialpad')}Door codes<em>${codes.filter(x => this._s(x.enabled)?.state === 'on').length} on</em></div><div class="codes">${codes.map((x, i) => {
+        const on = this._s(x.enabled)?.state === 'on', nm = this._s(x.name_entity)?.state || x.name || `Code ${i + 1}`;
+        return `<div class="cd ${on ? 'on' : ''}"><button class="cdn" data-a="codes"><span class="av">${esc((nm[0] || '?').toUpperCase())}</span><span class="t">${esc(nm)}<small>${on ? 'Can open the doors' : 'Off'}</small></span></button><button class="tg ${on ? 'on' : ''}" data-code="${esc(x.enabled)}" aria-label="${on ? 'Turn off' : 'Turn on'} ${esc(nm)}"></button></div>`; }).join('')}
+        <button class="mng" data-a="codes">${ic('pencil-outline')}See or change codes</button></div>` : ''}
     `;
+    R.querySelectorAll('[data-code]').forEach(b => b.addEventListener('click', () => { b.classList.toggle('on'); this._hass.callService('switch', 'toggle', { entity_id: b.dataset.code }); }));
     R.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => this._arm(b.dataset.arm)));
     R.querySelectorAll('[data-lock]').forEach(b => b.addEventListener('click', () => this._lock(b.dataset.lock)));
-    R.querySelector('[data-a=codes]')?.addEventListener('click', () => this._codesSheet());
+    R.querySelectorAll('[data-a=codes]').forEach(b => b.addEventListener('click', () => this._codesSheet()));
   }
   /* ----- live cameras: one big live view, tabs to switch; only the chosen camera streams ----- */
   _buildCams() {
