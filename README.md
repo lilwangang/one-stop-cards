@@ -51,7 +51,7 @@ rest_command:
 ### One Stop - Media Player card
 A room player in the One Stop glass style: room name and status, artwork, now playing, song progress, play/skip and volume. Two buttons in the corner open pop-ups:
 
-- **Choose music**: your saved playlists, favourites and inputs, with search. Tap one to play it.
+- **Choose music**: artwork tiles. For Music Assistant speakers: Playlists, Recently played, Favourite songs, Albums, Artists, Radio and full search. For other players (e.g. Sonos favourites): saved playlists, favourites and inputs. Tap one to play it.
 - **Group speakers**: tap rooms to add them to or remove them from the group, or use **Add all** / **Just this room**.
 
 It finds the speakers you can group with automatically. Every option is in the visual editor.

@@ -5271,13 +5271,23 @@ console.info(`%c ONE STOP %c Music card ${VERSION} `, 'background:#375374;color:
  */
 (() => {
 'use strict';
-const VERSION = '2.0.0';
+const VERSION = '2.2.0';
 const TAG = 'one-stop-media-player-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const F = { PAUSE: 1, VOL_SET: 4, VOL_MUTE: 8, PREV: 16, NEXT: 32, TURN_ON: 128, TURN_OFF: 256, SELECT_SOURCE: 2048, PLAY: 16384, GROUPING: 524288 };
 const OFFISH = ['off', 'unavailable', 'unknown'];
 const ACCENT = { slate: '169,191,210', blue: '96,165,250', green: '94,214,140', purple: '167,139,250', yellow: '250,204,21', teal: '45,212,191', red: '248,113,113', orange: '251,146,60' };
+const MA_TABS = [
+  { key: 'playlists', label: 'Playlists', fetch: [['playlist', { order_by: 'name', limit: 60 }]] },
+  { key: 'recent', label: 'Recently played', fetch: [['playlist', { order_by: 'last_played', limit: 15 }], ['album', { order_by: 'last_played', limit: 15 }]] },
+  { key: 'songs', label: 'Favourite songs', fetch: [['track', { favorite: true, order_by: 'timestamp_added_desc', limit: 48 }]] },
+  { key: 'albums', label: 'Albums', fetch: [['album', { order_by: 'last_played', limit: 48 }]] },
+  { key: 'artists', label: 'Artists', fetch: [['artist', { order_by: 'last_played', limit: 48 }]] },
+  { key: 'radio', label: 'Radio', fetch: [['radio', { limit: 48 }]] },
+];
+// ask image CDNs for a thumbnail instead of the 1000px original so the pop-up fills in fast
+const small = u => !u ? '' : /mzstatic\.com/.test(u) ? u.replace(/\/\d{2,4}x\d{2,4}(?=[a-z]{0,2}[.\-])/i, '/300x300') : u;
 const fmtT = s => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 const CSS = `
@@ -5359,6 +5369,23 @@ button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-colo
 .opt.sel ha-icon{color:rgb(var(--mp-ac))}
 .opt.lead{opacity:.75;cursor:default}
 .opt.busy{opacity:.55;pointer-events:none}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -2px 12px;padding:0 2px;flex:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;background:rgba(255,255,255,.07);color:#cdd7e2}
+.tab.on{background:rgba(var(--mp-ac),.28);color:#fff;box-shadow:inset 0 0 0 1.5px rgba(var(--mp-ac),.7)}
+.sec{grid-column:1/-1;margin:6px 2px -2px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#aebdcb}
+.grid.tiles{grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:12px 10px}
+.tile{display:flex;flex-direction:column;gap:7px;min-width:0;border-radius:16px;padding:0}
+.tile:active{transform:scale(.97)}
+.tile .cv{position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;display:grid;place-items:center;background:linear-gradient(145deg,rgba(156,180,203,.18),rgba(255,255,255,.03));border:1px solid rgba(211,224,238,.12);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.tile .cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tile .cv ha-icon{--mdc-icon-size:40px;color:#adbdcd}
+.tile.sel .cv{border:2px solid rgb(var(--mp-ac));box-shadow:0 0 0 3px rgba(var(--mp-ac),.25),0 6px 16px rgba(0,0,0,.25)}
+.tile .eq{position:absolute;right:7px;bottom:7px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgb(var(--mp-ac));color:#0b1220}
+.tile .eq ha-icon{--mdc-icon-size:18px;color:#0b1220}
+.tile .t{font-size:13.5px;line-height:17px;font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.tile .t small{display:block;font-size:11.5px;font-weight:400;color:#aab9c9;margin-top:2px}
+.tile.busy{opacity:.55;pointer-events:none}
 .empty{grid-column:1/-1;padding:18px 4px;text-align:center;color:#aab9c9;font-size:14px}
 .foot{display:flex;gap:8px;margin-top:12px}
 .foot button{flex:1;height:46px;border-radius:14px;display:grid;place-items:center;font-size:14.5px;font-weight:600;background:rgba(255,255,255,.08)}
@@ -5374,7 +5401,7 @@ class Sheet {
     this.root.innerHTML = `<style>${SHEET_CSS}</style><div class="bg"></div><div class="sh" style="--mp-ac:${ac}" role="dialog" aria-modal="true" aria-label="${esc(t[1])}">
       <div class="grab"></div>
       <div class="top"><span class="ic"><ha-icon icon="${t[0]}"></ha-icon></span><h3>${esc(t[1])}<small>${esc(card._name())}</small></h3><button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></div>
-      ${kind === 'src' ? `<p class="intro">Choose one of your saved playlists, favourites or an input.</p><input class="search" type="search" placeholder="Search…" aria-label="Search music">`
+      ${kind === 'src' ? `<p class="intro">${card._isMA() ? 'Pick something from your music library, or search for anything.' : 'Choose one of your saved playlists, favourites or an input.'}</p><input class="search" type="search" placeholder="${card._isMA() ? 'Search songs, artists, albums…' : 'Search…'}" aria-label="Search music">${card._isMA() ? `<div class="tabs">${MA_TABS.map((t, i) => `<button class="tab${i ? '' : ' on'}" data-tab="${t.key}">${t.label}</button>`).join('')}</div>` : ''}`
         : `<p class="intro">Tap a speaker to add or remove it. Everything in the group plays the same music.</p>`}
       <div class="body"><div class="grid"></div></div>
       ${kind === 'grp' ? `<div class="foot"><button data-f="all">Add all</button><button data-f="none">Just this room</button></div>` : ''}
@@ -5385,8 +5412,17 @@ class Sheet {
     this._key = e => { if (e.key === 'Escape') close(); };
     document.addEventListener('keydown', this._key);
     const s = this.root.querySelector('.search');
-    if (s) s.addEventListener('input', () => { this.q = s.value.trim().toLowerCase(); this.sig = null; this.update(); });
-    this.root.querySelector('.grid').addEventListener('click', e => { const o = e.target.closest('.opt'); if (o) this.pick(o); });
+    if (s) s.addEventListener('input', () => {
+      this.q = s.value.trim().toLowerCase(); this.sig = null;
+      if (card._isMA()) { clearTimeout(this._st); this._st = setTimeout(() => this.maLoad(), this.q ? 350 : 0); } else this.update();
+    });
+    this.tab = MA_TABS[0].key;
+    this.root.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => {
+      this.tab = b.dataset.tab; this.root.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
+      if (s) s.value = ''; this.q = ''; this.maLoad();
+    }));
+    if (kind === 'src') { this.root.querySelector('.grid').classList.add('tiles'); if (card._isMA()) this.maLoad(); else card._loadArt().then(() => { this.sig = null; this.update(); }); }
+    this.root.querySelector('.grid').addEventListener('click', e => { const o = e.target.closest('.opt,.tile'); if (o) this.pick(o); });
     this.root.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => this.bulk(b.dataset.f)));
     document.body.appendChild(this.host);
     this._ov = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden';
@@ -5395,14 +5431,19 @@ class Sheet {
   close() { document.removeEventListener('keydown', this._key); document.documentElement.style.overflow = this._ov || ''; this.host.remove(); if (this.card._sheet === this) this.card._sheet = null; }
   update() {
     const c = this.card, h = c._hass, st = c._st(), grid = this.root.querySelector('.grid'); if (!st) return;
+    if (this.kind === 'src' && c._isMA()) return;   // Music Assistant library is drawn by maLoad()
     if (this.kind === 'src') {
       const list = c._sources(), cur = st.attributes.source;
       const shown = list.filter(n => String(n).toLowerCase().includes(this.q));
-      const sig = shown.join('|') + '#' + cur + '#' + (this.busy || '');
+      const art = c._art || {}, playing = ['playing', 'paused'].includes(st.state);
+      const sig = shown.join('|') + '#' + cur + '#' + (this.busy || '') + '#' + Object.keys(art).length;
       if (sig === this.sig) return; this.sig = sig;
+      const KIND = { musicAlbum: 'Album', playlistContainer: 'Playlist', audioBroadcast: 'Radio', musicTrack: 'Song' };
       grid.innerHTML = shown.length ? shown.map(n => {
-        const tv = /^(tv|hdmi|line|line-in|optical)\b/i.test(n);
-        return `<button class="opt${n === cur ? ' sel' : ''}${this.busy === n ? ' busy' : ''}" data-v="${esc(n)}"><ha-icon icon="${tv ? 'mdi:television' : n === cur ? 'mdi:music-circle' : 'mdi:playlist-music-outline'}"></ha-icon><span class="t">${esc(n)}${n === cur ? '<small>Playing now</small>' : ''}</span></button>`;
+        const tv = /^(tv|hdmi|line|line-in|optical)\b/i.test(n), a = art[n] || {}, on = n === cur && playing;
+        const kind = on ? 'Playing now' : (KIND[a.kind] || (tv ? 'Input' : ''));
+        const icon = tv ? 'mdi:television' : a.kind === 'audioBroadcast' ? 'mdi:radio' : a.kind === 'musicTrack' ? 'mdi:music-note' : 'mdi:playlist-music';
+        return `<button class="tile${n === cur ? ' sel' : ''}${this.busy === n ? ' busy' : ''}" data-v="${esc(n)}"><span class="cv"><ha-icon icon="${icon}"></ha-icon>${a.img ? `<img src="${esc(small(a.img))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}${on ? '<span class="eq"><ha-icon icon="mdi:volume-high"></ha-icon></span>' : ''}</span><span class="t">${esc(n)}${kind ? `<small>${kind}</small>` : ''}</span></button>`;
       }).join('') : `<div class="empty">${list.length ? 'Nothing matches.' : st.state === 'unavailable' ? 'This speaker is offline.' : 'No saved music found.'}</div>`;
     } else {
       const rooms = c._groupable(), mem = c._members(), lead = mem[0] || c._cfg.entity;
@@ -5419,6 +5460,12 @@ class Sheet {
   }
   async pick(o) {
     const c = this.card, v = o.dataset.v;
+    if (this.kind === 'src' && o.dataset.uri) {
+      o.classList.add('busy');
+      try { await c._hass.callService('music_assistant', 'play_media', { entity_id: c._cfg.entity, media_id: o.dataset.uri, media_type: o.dataset.type, enqueue: 'replace' }); } catch (e) { console.warn('One Stop media player: play failed', e); }
+      o.classList.remove('busy'); if (c._cfg.close_after_pick !== false) this.close();
+      return;
+    }
     if (this.kind === 'src') {
       this.busy = v; this.sig = null; this.update();
       try { await c._hass.callService('media_player', 'select_source', { entity_id: c._cfg.entity, source: v }); } catch (e) { console.warn('One Stop media player: source failed', e); }
@@ -5433,6 +5480,38 @@ class Sheet {
       else await c._hass.callService('media_player', 'join', { entity_id: lead, group_members: [v] });
     } catch (e) { console.warn('One Stop media player: grouping failed', e); }
     setTimeout(() => { this.busy = null; this.sig = null; this.update(); }, 1200);
+  }
+  maTile(it) {
+    const artists = (it.artists || []).map(x => x.name).join(', ');
+    const kind = { playlist: 'Playlist', album: artists || 'Album', track: artists || 'Song', artist: 'Artist', radio: 'Radio' }[it.media_type] || '';
+    const img = small(it.image || it.album?.image || '');
+    const icon = { playlist: 'mdi:playlist-music', album: 'mdi:album', track: 'mdi:music-note', artist: 'mdi:account-music', radio: 'mdi:radio' }[it.media_type] || 'mdi:music';
+    return `<button class="tile" data-uri="${esc(it.uri)}" data-type="${esc(it.media_type)}"><span class="cv"><ha-icon icon="${icon}"></ha-icon>${img ? `<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span><span class="t">${esc(it.name)}${kind ? `<small>${esc(kind)}</small>` : ''}</span></button>`;
+  }
+  async maLoad() {
+    const c = this.card, grid = this.root.querySelector('.grid'), ticket = this._ticket = (this._ticket || 0) + 1;
+    const key = this.q ? 'q:' + this.q : 't:' + this.tab;
+    if (c._maCache?.[key]) { grid.innerHTML = c._maCache[key]; return; }
+    grid.innerHTML = '<div class="empty">Loading…</div>';
+    let html = '';
+    try {
+      if (this.q) {
+        const r = await c._ma('search', { name: this.q, limit: 12 });
+        html = [['Songs', r.tracks], ['Artists', r.artists], ['Albums', r.albums], ['Playlists', r.playlists], ['Radio', r.radio]]
+          .filter(([, l]) => l && l.length).map(([t, l]) => `<div class="sec">${t}</div>` + l.map(i => this.maTile(i)).join('')).join('');
+        if (!html) html = `<div class="empty">No results for “${esc(this.q)}”.</div>`;
+      } else {
+        const def = MA_TABS.find(t => t.key === this.tab) || MA_TABS[0];
+        const parts = await Promise.all(def.fetch.map(([media_type, opts]) => c._ma('get_library', { media_type, ...opts }).then(r => r?.items || []).catch(() => [])));
+        const seen = new Set();
+        const items = parts.flat().filter(i => !/random tracks|recently added|all favou?rited/i.test(i.name || ''))
+          .filter(i => { const k = (i.media_type || '') + '|' + String(i.name || '').trim().toLowerCase(); if (seen.has(i.uri) || seen.has(k)) return false; seen.add(i.uri); seen.add(k); return true; });
+        html = items.map(i => this.maTile(i)).join('') || '<div class="empty">Nothing here yet.</div>';
+      }
+    } catch (e) { html = `<div class="empty">Couldn’t load your music (${esc(e?.message || e)}).</div>`; }
+    if (ticket !== this._ticket) return;
+    (c._maCache = c._maCache || {})[key] = html; grid.innerHTML = html;
+    setTimeout(() => { if (c._maCache) delete c._maCache[key]; }, 5 * 60 * 1000);
   }
   async bulk(f) {
     const c = this.card, mem = c._members(), lead = mem[0] || c._cfg.entity, me = c._cfg.entity;
@@ -5464,6 +5543,33 @@ class OneStopMediaPlayerCard extends HTMLElement {
   }
   _name() { return this._cfg.name || this._roomName(this._cfg.entity); }
   _sources() { const all = this._st()?.attributes?.source_list || []; return this._cfg.sources && this._cfg.sources.length ? this._cfg.sources : all; }
+  _isMA() { return this._hass?.entities?.[this._cfg.entity]?.platform === 'music_assistant'; }
+  async _ma(service, data) {
+    if (!this._maEntry) {
+      if (this._cfg.config_entry_id) this._maEntry = this._cfg.config_entry_id;
+      else { const es = await this._hass.callWS({ type: 'config_entries/get', domain: 'music_assistant' }); this._maEntry = (es.find(e => e.state === 'loaded') || es[0])?.entry_id; }
+    }
+    const r = await this._hass.callWS({ type: 'call_service', domain: 'music_assistant', service, service_data: { config_entry_id: this._maEntry, ...data }, return_response: true });
+    return r.response;
+  }
+  async _loadArt() {
+    // artwork for "Choose music": read the player's favourites (Sonos and anything else exposing a Favorites folder)
+    const id = this._cfg.entity, now = Date.now();
+    if (this._artFor === id && now - (this._artAt || 0) < 10 * 60 * 1000) return;
+    this._artFor = id; this._artAt = now; const map = {};
+    const browse = (t, i) => this._hass.callWS({ type: 'media_player/browse_media', entity_id: id, ...(t ? { media_content_type: t, media_content_id: i ?? '' } : {}) });
+    const add = (c, kind) => { if (c.title && !map[c.title]) map[c.title] = { img: c.thumbnail || '', kind }; };
+    try {
+      let fav = null;
+      try { fav = await browse('favorites', ''); } catch (e) { const root = await browse(); const f = (root.children || []).find(c => /favou?rites/i.test(c.title) || c.media_content_type === 'favorites'); if (f) fav = await browse(f.media_content_type, f.media_content_id); }
+      const kids = fav?.children || [];
+      await Promise.all(kids.map(async k => {
+        if (k.can_expand) { try { const r = await browse(k.media_content_type, k.media_content_id); (r.children || []).forEach(c => add(c, String(k.media_content_id).split('.').pop())); } catch (e) {} }
+        else add(k, '');
+      }));
+    } catch (e) { /* no browsable favourites: tiles fall back to icons */ }
+    this._art = map;
+  }
   _members() { const g = this._st()?.attributes?.group_members; return Array.isArray(g) ? g : []; }
   _groupable() {
     const me = this._cfg.entity;
@@ -5539,12 +5645,13 @@ class OneStopMediaPlayerCard extends HTMLElement {
     q('.dot').classList.toggle('on', playing);
     q('ha-card').classList.toggle('dead', st.state === 'unavailable');
     q('.lab').textContent = active ? 'Now playing' : 'Ready to play';
-    q('.ttl').textContent = active ? (a.media_title || a.source || 'Music') : (a.source || (st.state === 'off' ? 'Off' : 'Nothing playing'));
-    q('.art2').textContent = active ? [a.media_artist || a.media_series_title, a.media_album_name && a.media_album_name !== a.media_title ? a.media_album_name : ''].filter(Boolean).join(' · ') : (this._sources().length ? 'Tap the list button to choose music' : '');
+    const src = this._isMA() && /queue/i.test(a.source || '') ? '' : a.source;
+    q('.ttl').textContent = active ? (a.media_title || src || 'Music') : (src || (st.state === 'off' ? 'Off' : 'Nothing playing'));
+    q('.art2').textContent = active ? [a.media_artist || a.media_series_title, a.media_album_name && a.media_album_name !== a.media_title ? a.media_album_name : ''].filter(Boolean).join(' · ') : (this._sources().length || this._isMA() ? 'Tap the list button to choose music' : '');
     const pic = active && a.entity_picture ? a.entity_picture : '';
     if (pic !== this._pic) { this._pic = pic; const art = q('.art'); art.style.backgroundImage = pic ? `url("${pic}")` : ''; art.classList.toggle('has', !!pic); }
     // header buttons
-    q('[data-a=src]').classList.toggle('hide', !(f & F.SELECT_SOURCE) || c.show_sources === false);
+    q('[data-a=src]').classList.toggle('hide', !((f & F.SELECT_SOURCE) || this._isMA()) || c.show_sources === false);
     const grpOk = (f & F.GROUPING) && c.show_group !== false && this._groupable().length > 1;
     q('[data-a=grp]').classList.toggle('hide', !grpOk); q('[data-a=grp]').classList.toggle('act', mem.length > 1);
     const n = q('.sq .n'); n.classList.toggle('hide', mem.length < 2); n.textContent = mem.length;
