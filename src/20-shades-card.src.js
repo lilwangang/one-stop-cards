@@ -681,7 +681,7 @@ class OneStopShadesCard extends HTMLElement {
   }
   _drag(el) {
     const id = el.dataset.slide, axis = el.dataset.axis;
-    let active = false, val = null;
+    let active = false, val = null; el.dataset.holdSlide = '';
     const frac = e => { const r = el.getBoundingClientRect(); return axis === 'y' ? 1 - Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) : Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
     const show = v => { el.style.setProperty('--p', v + '%'); const t = el.querySelector('[data-pct]') || this.shadowRoot.querySelector(`[data-pct-of="${window.CSS?.escape ? window.CSS.escape(id) : id}"]`); if (t) t.textContent = v + '%'; if (el.classList.contains('big')) { const p = this.shadowRoot.querySelector('.L-slide [data-pct]'); if (p) p.textContent = v + '%'; } };
     el.addEventListener('pointerdown', e => { if (el.classList.contains('dis')) return; active = true; el.setPointerCapture?.(e.pointerId); el.classList.add('moving'); el._drag = true; val = Math.round(frac(e) * 100); show(val); e.preventDefault(); e.stopPropagation(); });

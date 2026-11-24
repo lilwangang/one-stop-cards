@@ -51,7 +51,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 .artist{font-size:17px;line-height:22px;color:var(--om-sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scrub{margin-top:18px}
 .times{display:flex;justify-content:space-between;font-size:11.5px;color:var(--om-faint);margin-top:6px;font-variant-numeric:tabular-nums;font-weight:600}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0;--p:0%;touch-action:none}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0;--p:0%;touch-action:pan-y}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,rgba(255,255,255,.85) var(--p),rgba(255,255,255,.18) var(--p))}
 input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(90deg,rgba(255,255,255,.85) var(--p),rgba(255,255,255,.18) var(--p))}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-4px;box-shadow:0 1px 4px rgba(0,0,0,.4);opacity:0;transition:opacity .15s}
@@ -305,6 +305,7 @@ class OneStopMusicCard extends HTMLElement {
     el.addEventListener('pointerdown', start); el.addEventListener('touchstart', start, { passive: true });
     el.addEventListener('input', () => { paint(); if (!onRelease) { clearTimeout(el._t); el._t = setTimeout(() => commit(+el.value), 120); } });
     el.addEventListener('change', () => { commit(+el.value); setTimeout(end, 600); });
+    const relax = () => setTimeout(end, 1200); el.addEventListener('pointerup', relax); el.addEventListener('pointercancel', relax);
   }
 
   /* ---------- live state ---------- */

@@ -352,6 +352,7 @@ class OneStopThermostatCard extends HTMLElement {
     const frac = e => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
     const valOf = f => kind === 'fan' ? fm[Math.round(f * (fm.length - 1))] : (() => { const lo = +el.dataset.min, hi = +el.dataset.max; return Math.max(lo, Math.min(hi, +(Math.round((lo + f * (hi - lo)) / step) * step).toFixed(1))); })();
     const show = f => { const v = valOf(f); const p = kind === 'fan' ? (fm.length > 1 ? fm.indexOf(v) / (fm.length - 1) * 100 : 100) : (v - el.dataset.min) / (el.dataset.max - el.dataset.min) * 100; el.style.setProperty('--p', p + '%'); el.querySelector('[data-v]').textContent = kind === 'fan' ? v : fmt(v, step) + '°'; return v; };
+    el.dataset.holdSlide = '';
     el.addEventListener('pointerdown', e => { active = true; this._dragging = true; el.setPointerCapture?.(e.pointerId); el.classList.add('moving'); show(frac(e)); e.preventDefault(); e.stopPropagation(); });
     el.addEventListener('pointermove', e => { if (active) show(frac(e)); });
     el.addEventListener('pointerup', e => {

@@ -48,6 +48,15 @@ rest_command:
     timeout: 20
 ```
 
+### One Stop - Media Player card
+One tidy player for any media player (TV, Apple TV, speaker): artwork with a blurred backdrop, now playing, play/pause/skip, progress, volume and mute, power, and a row of source/app buttons. Everything is set from the visual editor; show or hide each part and choose which sources appear.
+
+```yaml
+type: custom:one-stop-media-player-card
+entity: media_player.living_room_apple_tv
+color: blue
+```
+
 ### One Stop - Music card
 A Sonos / Apple Music style player for Music Assistant speakers. Big artwork with a blurred backdrop, scrubber, shuffle/repeat and volume; a "Play on" sheet to switch rooms, group speakers and set each room's volume; and your library (recently played, playlists, favourite songs) with search. Tap anything to play it on the current room.
 
