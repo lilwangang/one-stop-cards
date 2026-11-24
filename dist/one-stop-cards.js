@@ -2113,7 +2113,7 @@ console.info(`%c ONE STOP %c Roller Shade card ${VERSION} `, 'background:#375374
  */
 (() => {
 'use strict';
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -2160,7 +2160,7 @@ h2{margin:0;font-weight:750;font-size:var(--z-title,24px);line-height:1.17;lette
 .s.pair{flex-direction:column;align-items:stretch;gap:9px;padding:12px}
 .s.pair:not(.wide){grid-row:span 2}
 .grid{grid-auto-flow:row dense}
-.s .lh{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}.s .lh>span{white-space:nowrap;flex:none}
+.s .lh{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0}.s .lh>span{white-space:nowrap;flex:none}.s .lh.stack{flex-direction:column;align-items:flex-start;gap:0}
 .s .lv{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal;font-size:var(--cap,14.5px);font-weight:700;color:rgb(var(--sc))}.s .lv small{font-size:inherit;font-weight:inherit;color:inherit;margin-left:2px}
 .s.pair .hd{display:flex;align-items:center;gap:10px;min-width:0}
 .s.pair .hd .i{width:30px;height:30px;border-radius:10px}.s.pair .hd .i ha-icon{--mdc-icon-size:18px}
@@ -2350,12 +2350,23 @@ class OneStopVehicleCard extends HTMLElement {
     if (c.tile_strength != null) out += `--z-tile:${+c.tile_strength / 100};`;
     return out;
   }
-  _fit() {   // captions as big as the setting allows, all the same size, none cut off
-    const max = +this._cfg.caption_size || 14.5, els = [...this.shadowRoot.querySelectorAll('.lv')]; if (!els.length) return;
-    const key = els.map(e => e.textContent + e.clientWidth).join('|') + max; if (this._fk === key) return; this._fk = key;
-    let size = max; const over = () => els.some(e => e.scrollWidth > e.clientWidth + 0.5);
-    els.forEach(e => (e.style.fontSize = size + 'px'));
-    while (size > 11 && over()) { size -= 0.5; els.forEach(e => (e.style.fontSize = size + 'px')); }
+  _fit() {   // captions as big as the setting allows, all the same size; a caption that still can't fit moves under the name
+    const max = +this._cfg.caption_size || 14.5, els = [...this.shadowRoot.querySelectorAll('.lv')]; if (!els.length) return this._fitValues();
+    const key = els.map(e => e.textContent + e.closest('.lh').clientWidth).join('|') + max; if (this._fk === key) return this._fitValues(); this._fk = key;
+    const over = e => e.scrollWidth > e.clientWidth + 0.5;
+    els.forEach(e => { e.closest('.lh').classList.remove('stack'); e.style.fontSize = max + 'px'; });
+    const floor = Math.max(12, max * 0.8); let size = max;
+    while (size > floor && els.some(over)) { size -= 0.5; els.forEach(e => (e.style.fontSize = size + 'px')); }
+    els.forEach(e => { if (over(e)) { e.closest('.lh').classList.add('stack'); e.style.fontSize = max + 'px'; } });
+    this._fitValues();
+  }
+  _fitValues() {   // a tile value that would be cut off shrinks just enough to fit
+    this.shadowRoot.querySelectorAll('.s strong').forEach(e => {
+      const k = e.innerHTML + e.parentElement.clientWidth; if (e._fk === k) return; e._fk = k;
+      e.style.fontSize = ''; if (e.scrollWidth <= e.clientWidth + 0.5) return;
+      let size = parseFloat(getComputedStyle(e).fontSize); const min = size * 0.7;
+      while (size > min && e.scrollWidth > e.clientWidth + 0.5) { size -= 0.5; e.style.fontSize = size + 'px'; }
+    });
   }
   connectedCallback() { if (this._built) this._tick(); if (!this._ro && window.ResizeObserver) { this._ro = new ResizeObserver(() => { this._fk = ''; this._fit(); }); this._ro.observe(this); } }
   _time(st) {
