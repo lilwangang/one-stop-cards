@@ -61,6 +61,26 @@ type: custom:one-stop-media-player-card
 entity: media_player.kitchen
 ```
 
+### One Stop - Mealie card
+"What's cooking?" for the built-in Mealie integration: tonight's dinner with its photo and a **Cook** mode (steps one at a time, ingredient checklist, recipe size). Pop-ups for **Recipes** (search, view, cook, plan, add ingredients to your list), **Shopping list**, the week's **Meal plan**, choosing tonight's dinner and **importing** a recipe from a link.
+
+```yaml
+type: custom:one-stop-mealie-card
+shopping_list: todo.mealie_shopping_list
+mealie_url: http://192.168.1.10:9925   # for recipe photos
+```
+
+### One Stop - Smoker card
+For a smoker or pellet grill (e.g. Traeger) with optional MEATER-style probes. Between cooks it shows a calm "ready" scene with pellets and status. While cooking: big grill temperature, progress to target, − / + to change the target, outside temperature, pellets, each active probe, and a Shut down button that asks first.
+
+```yaml
+type: custom:one-stop-smoker-card
+climate: climate.my_traeger
+grill_temperature: sensor.traeger_grill_temperature
+probes:
+  - sensor.meater_probe_ab12cd34_
+```
+
 ### One Stop - Music card
 A Sonos / Apple Music style player for Music Assistant speakers. Big artwork with a blurred backdrop, scrubber, shuffle/repeat and volume; a "Play on" sheet to switch rooms, group speakers and set each room's volume; and your library (recently played, playlists, favourite songs) with search. Tap anything to play it on the current room.
 
