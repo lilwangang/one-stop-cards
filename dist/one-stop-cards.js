@@ -7017,7 +7017,7 @@ go();
  */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const TAG = 'one-stop-mealie-card';
 const EDITOR_TAG = TAG + '-editor';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7346,7 +7346,7 @@ class OneStopMealieCard extends HTMLElement {
     const KEY = 'one-stop-mealie-ing:' + (await this._entry());
     let idx = this._idx;
     if (!idx) { try { idx = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { idx = null; } }
-    idx = idx && idx.v === 1 ? idx : { v: 1, r: {} };
+    idx = idx && idx.v === 2 ? idx : { v: 2, r: {} };
     if (this._idx && Date.now() - (this._idxAt || 0) < 120000) return this._idx;
     const list = (await this._m('get_recipes', { result_limit: 1000 }))?.recipes?.items || [];
     const live = new Set(list.map(x => x.recipe_id));
@@ -7355,7 +7355,7 @@ class OneStopMealieCard extends HTMLElement {
     let done = 0;
     const work = async () => { for (let x; (x = todo.shift());) {
       try { const d = (await this._m('get_recipe', { recipe_id: x.recipe_id }))?.recipe;
-        if (d) idx.r[x.recipe_id] = { n: d.name, t: d.total_time || d.perform_time || '', u: x.date_updated || x.date_added || '', i: (d.ingredients || []).filter(y => !(y.title && !y.food && !y.note)).map(y => [y.food?.name, y.note, y.display].filter(Boolean).join(' ')) };
+        if (d) idx.r[x.recipe_id] = { n: d.name, t: d.total_time || d.perform_time || '', u: x.date_updated || x.date_added || '', i: (d.ingredients || []).filter(y => !(y.title && !y.food && !y.note)).map(y => { const t = ingText(y) || y.display || y.note || ''; return y.food?.name && !t.toLowerCase().includes(y.food.name.toLowerCase()) ? `${t} ${y.food.name}` : t; }) };
       } catch (e) {}
       progress && progress(++done, done + todo.length);
     } };
