@@ -7,7 +7,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const TAG = 'one-stop-music-card';
 const EDITOR_TAG = TAG + '-editor';
 
@@ -89,10 +89,12 @@ ha-card{position:relative;border-radius:var(--om-radius,28px);padding:18px 16px 
 ha-card.bg-none{background:transparent;border:none;box-shadow:none;padding-left:4px;padding-right:4px}
 ha-card.bg-glass{background:rgba(24,24,30,.45);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:2px 2px 16px}
-.roomsel{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px 0 12px;border-radius:999px;background:var(--fill);font-size:calc(15px * var(--z,1));font-weight:650;max-width:62%}
+.roomsel{display:flex;align-items:center;gap:8px;height:calc(46px * var(--z,1));padding:0 14px 0 6px;border-radius:999px;background:rgba(var(--ac),.16);border:1.5px solid rgba(var(--ac),.55);font-size:calc(16px * var(--z,1));font-weight:700;max-width:64%;box-shadow:0 6px 18px rgba(var(--ac),.18)}
 .roomsel span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.roomsel ha-icon{--mdc-icon-size:20px;color:rgb(var(--ac));flex:none}
-.roomsel .chev{--mdc-icon-size:18px;color:var(--s)}
+.roomsel .ri{flex:none;width:calc(34px * var(--z,1));height:calc(34px * var(--z,1));border-radius:50%;background:rgb(var(--ac));display:grid;place-items:center}
+.roomsel .ri ha-icon{--mdc-icon-size:20px;color:#fff}
+.roomsel .chev{--mdc-icon-size:20px;color:var(--t);flex:none}
+.roomsel.on{background:rgb(var(--ac));border-color:rgb(var(--ac))}.roomsel.on .ri{background:rgba(255,255,255,.25)}
 .view{min-height:340px;padding-bottom:22px}
 .search{display:flex;align-items:center;gap:10px;padding:0 14px;height:calc(48px * var(--z,1));border-radius:14px;background:var(--fill)}
 .search ha-icon{--mdc-icon-size:22px;color:var(--s)}
@@ -140,7 +142,7 @@ ha-card.bg-none .dock{margin:0 -4px;border-radius:20px}
 .mini .mb:active{background:rgba(255,255,255,.1)}
 .mprog{height:3px;border-radius:2px;background:rgba(255,255,255,.12);margin:0 6px;overflow:hidden}
 .mprog i{display:block;height:100%;width:0;background:rgba(255,255,255,.75)}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);padding-top:6px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);padding-top:6px;padding-right:56px}
 .tabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;font-size:calc(11.5px * var(--z,1));font-weight:600;color:var(--f);text-align:center}
 .tabs ha-icon{--mdc-icon-size:26px}
 .tabs button.on{color:rgb(var(--ac))}
@@ -299,13 +301,13 @@ class OneStopMusicCard extends HTMLElement {
     const bg = this._cfg.background || 'default';
     this._root.innerHTML = `<style>${BASE}${CARD_CSS}</style><ha-card class="bg-${esc(bg)}" style="${this._vars()}">
       <div class="head"><div class="h1">${esc(this._cfg.title)}</div>
-        <button class="roomsel" data-act="tab" data-tab="rooms">${ic('speaker')}<span class="rs"></span>${ic('chevron-down', 'chev')}</button></div>
+        <button class="roomsel" data-act="tab" data-tab="rooms"><span class="ri">${ic('speaker-multiple')}</span><span class="rs"></span>${ic('chevron-down', 'chev')}</button></div>
       <div class="view"></div>
       <div class="dock">
         <button class="mini" data-act="np"><span class="mc"></span><div style="min-width:0"><b class="mt"></b><div class="ml"><span class="eq"><i></i><i></i><i></i></span><em class="ms"></em></div></div>
           <span class="mb" data-act="pp">${ic('play')}</span><span class="mb" data-act="next">${ic('skip-next')}</span></button>
         <div class="mprog"><i></i></div>
-        <nav class="tabs">${[['home', 'home-variant', 'Listen Now'], ['search', 'magnify', 'Search'], ['library', 'music-box-multiple', 'Library'], ['rooms', 'speaker-multiple', 'Rooms']]
+        <nav class="tabs">${[['home', 'home-variant', 'Listen Now'], ['search', 'magnify', 'Search'], ['library', 'music-box-multiple', 'Library']]
           .map(([k, i, l]) => `<button data-act="tab" data-tab="${k}">${ic(i)}${l}</button>`).join('')}</nav>
       </div><div class="toast"></div></ha-card>`;
     if (!this._wired) {
@@ -318,6 +320,7 @@ class OneStopMusicCard extends HTMLElement {
   _paint() {
     if (!this._root || !this._hass) return;
     this._root.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === this._tab));
+    this._root.querySelector('.roomsel')?.classList.toggle('on', this._tab === 'rooms');
     const v = this._root.querySelector('.view');
     if (this._tab === 'home') this._home(v);
     else if (this._tab === 'search') this._searchView(v);
@@ -623,7 +626,7 @@ class OneStopMusicCardEditor extends HTMLElement {
     const sel = opts => ({ select: { mode: 'dropdown', options: opts } });
     this._form.schema = [
       { name: 'players', required: true, selector: { entity: { multiple: true, filter: { domain: 'media_player', integration: 'music_assistant' } } } },
-      { type: 'grid', name: '', schema: [{ name: 'title', selector: { text: {} } }, { name: 'start_tab', selector: sel([{ value: 'home', label: 'Listen Now' }, { value: 'search', label: 'Search' }, { value: 'library', label: 'Library' }, { value: 'rooms', label: 'Rooms' }]) }] },
+      { type: 'grid', name: '', schema: [{ name: 'title', selector: { text: {} } }, { name: 'start_tab', selector: sel([{ value: 'home', label: 'Listen Now' }, { value: 'search', label: 'Search' }, { value: 'library', label: 'Library' }, { value: 'rooms', label: 'Rooms (speaker button)' }]) }] },
       { name: 'rows', selector: { select: { multiple: true, mode: 'list', options: Object.entries(ROWS).map(([value, r]) => ({ value, label: r.title })) } } },
       { type: 'expandable', name: '', title: 'Look', icon: 'mdi:palette-outline', schema: [
         { type: 'grid', name: '', schema: [{ name: 'accent', selector: sel(Object.keys(ACCENTS).map(k => ({ value: k, label: k[0].toUpperCase() + k.slice(1) }))) },
