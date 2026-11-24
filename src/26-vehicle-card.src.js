@@ -5,7 +5,7 @@
  */
 (() => {
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const TAG = 'one-stop-vehicle-card';
 const EDITOR_TAG = TAG + '-editor';
 const MAX_ACTIONS = 12, MAX_STATS = 24;
@@ -26,24 +26,24 @@ ha-card{position:relative;overflow:hidden;padding:20px 16px 18px;border-radius:2
   border:1px solid rgba(255,255,255,.09);box-shadow:0 18px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
 button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
+h2{margin:0;font-weight:750;font-size:var(--z-title,24px);line-height:1.17;letter-spacing:-.5px}
 .upd{font-size:13px;color:#b6c2d0;white-space:nowrap}
 .hero{position:relative;margin:8px 0 0}
 .hero::after{content:'';position:absolute;left:14%;right:14%;bottom:6px;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.65),rgba(0,0,0,0));z-index:0}
-.pic{position:relative;z-index:1;display:block;width:94%;max-width:460px;margin:0 auto}
-.primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:56px;margin:14px 0 4px;border-radius:18px;font-size:17px;font-weight:700;letter-spacing:.2px;
+.pic{position:relative;z-index:1;display:block;width:var(--z-pic,94%);max-width:calc(490px * var(--z-picf,1));margin:0 auto}
+.primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:calc(var(--z-main,17px) * 3.3);margin:14px 0 4px;border-radius:18px;font-size:var(--z-main,17px);font-weight:700;letter-spacing:.2px;
   background:linear-gradient(180deg,rgba(var(--ac),.95),rgba(var(--ac),.72));color:#06101f;box-shadow:0 10px 24px rgba(var(--ac),.28),inset 0 1px 0 rgba(255,255,255,.35);transition:transform .1s}
 .primary ha-icon{--mdc-icon-size:24px}.primary:active{transform:scale(.98)}
 .acts{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:16px 6px;margin:18px 0 2px}
 .a{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;min-width:0}
-.a .c{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.12),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 14px rgba(0,0,0,.3);transition:transform .1s,box-shadow .2s}
+.a .c{width:var(--z-btn,58px);height:var(--z-btn,58px);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.12),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 14px rgba(0,0,0,.3);transition:transform .1s,box-shadow .2s}
 .a:active .c{transform:scale(.92)}
-.a .c ha-icon{--mdc-icon-size:25px;color:rgb(var(--ac))}
+.a .c ha-icon{--mdc-icon-size:calc(var(--z-btn,58px) * .43);color:rgb(var(--ac))}
 .a.on .c{background:rgba(var(--ac),.16);border:1.5px solid rgba(var(--ac),.9);box-shadow:0 0 16px rgba(var(--ac),.4)}
 .a.busy .c{animation:pulse 1s ease-in-out infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(var(--ac),.18)}}
-.a b{font-size:13px;font-weight:600;line-height:16px;color:#f1f5f9}
+.a b{font-size:var(--z-blabel,13px);font-weight:600;line-height:1.25;color:#f1f5f9}
 .a small{font-size:12px;color:#b6c2d0;margin-top:-5px}
-.sec{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:#dbe3ec;letter-spacing:.6px;text-transform:uppercase;margin:22px 4px 10px}
+.sec{display:flex;align-items:center;gap:8px;font-size:var(--z-head,13.5px);font-weight:700;color:#dbe3ec;letter-spacing:.6px;text-transform:uppercase;margin:22px 4px 10px}
 .sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,0))}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .s{display:flex;align-items:center;gap:9px;min-height:72px;padding:10px 10px 10px 11px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.07);min-width:0}
@@ -61,14 +61,14 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .s .col{display:flex;flex-direction:column;gap:1px;padding:6px 2px;min-width:0}
 .s .col+.col{border-top:1px solid rgba(255,255,255,.08)}
 .s.wide .col+.col{border-top:0;border-left:1px solid rgba(255,255,255,.1);padding-left:14px}
-.s .col small{font-size:12px;font-weight:600;color:#aab6c5;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s .col strong{font-size:17px;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s .i{flex:none;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
-.s .i ha-icon{--mdc-icon-size:21px;color:rgb(var(--sc))}
+.s .col small{font-size:calc(var(--z-name,15.5px) * .78);font-weight:600;color:#aab6c5;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s .col strong{font-size:var(--z-value,17px);font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s .i{flex:none;width:var(--z-icon,34px);height:var(--z-icon,34px);border-radius:12px;display:grid;place-items:center;background:rgba(var(--sc),.14)}
+.s .i ha-icon{--mdc-icon-size:calc(var(--z-icon,34px) * .62);color:rgb(var(--sc))}
 .s .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.s span{font-size:15.5px;font-weight:650;line-height:19px;color:#ffffff;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s strong small{font-size:13px;font-weight:600;color:#cbd5e1;margin-left:3px;letter-spacing:0}
-.s strong{color:#e2e8f0;font-size:17px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s span{font-size:var(--z-name,15.5px);font-weight:650;line-height:1.23;color:#ffffff;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s strong small{font-size:calc(var(--z-value,17px) * .76);font-weight:600;color:#cbd5e1;margin-left:3px;letter-spacing:0}
+.s strong{color:#e2e8f0;font-size:var(--z-value,17px);font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s.warn{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.08)} .s.warn strong{color:#fca5a5}
 .s.ok strong{color:#86efac}
 .sw{flex:none;width:46px;height:28px;border-radius:14px;background:rgba(255,255,255,.16);position:relative;transition:background .2s}
@@ -80,7 +80,7 @@ h2{margin:0;font:750 24px/28px inherit;letter-spacing:-.5px}
 .tires .car .body::before,.tires .car .body::after{content:'';position:absolute;left:-7px;right:-7px;height:18px;border-left:5px solid rgba(255,255,255,.3);border-right:5px solid rgba(255,255,255,.3);border-radius:2px}
 .tires .car .body::before{top:14px}.tires .car .body::after{bottom:14px}
 .tp{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:rgba(45,212,191,.10);border:1px solid rgba(45,212,191,.25)}
-.tp.r{text-align:right}.tp span{font-size:15px;font-weight:650;color:#ffffff}.tp strong{font-size:18px;font-weight:700}.tp strong small{font-size:12px;color:#9aa7b8;font-weight:600}
+.tp.r{text-align:right}.tp span{font-size:calc(var(--z-tire,18px) * .83);font-weight:650;color:#ffffff}.tp strong{font-size:var(--z-tire,18px);font-weight:700}.tp strong small{font-size:12px;color:#9aa7b8;font-weight:600}
 .tp.low{background:rgba(251,146,60,.12);border-color:rgba(251,146,60,.5)}.tp.low strong{color:#fdba74}
 .a small.ok{color:#86efac;font-weight:600}.a small.fail{color:#fca5a5;font-weight:700}.a small.wait{color:#93c5fd;font-weight:600}
 .a.wait .c{box-shadow:0 0 0 2px rgba(96,165,250,.55);animation:ring 1.2s ease-in-out infinite}@keyframes ring{50%{box-shadow:0 0 0 6px rgba(96,165,250,.15)}}
@@ -138,7 +138,7 @@ class OneStopVehicleCard extends HTMLElement {
     });
     if (open) grid += '</div>';
     this._allActs = [...prim, ...acts];
-    R.innerHTML = `<style>${CSS}</style><ha-card style="${c.caption_size ? `--cap:${+c.caption_size}px` : ''}">
+    R.innerHTML = `<style>${CSS}</style><ha-card style="${this._sizes()}">
       <div class="top"><h2>${esc(c.name || 'My vehicle')}</h2>${c.show_updated ? '<div class="upd" data-upd></div>' : ''}</div>
       ${img ? `<div class="hero"><img class="pic" src="${esc(img)}" alt=""></div>` : ''}
       ${prim.map((a, i) => `<button class="primary" data-a="${i}" style="--ac:${COLORS[a.color] || COLORS.blue}"><ha-icon icon="${esc(a.icon || iconFor(a.entity))}"></ha-icon>${esc(a.name || '')}<small data-as="${i}" hidden></small></button>`).join('')}
@@ -217,6 +217,12 @@ class OneStopVehicleCard extends HTMLElement {
     if (upd) { const ent = c.updated_entity && h.states[c.updated_entity]; const t = ent ? (Date.parse(ent.state) ? ent.state : ent.last_changed) : null; upd.textContent = t ? `Updated ${ago(t)}` : ''; }
     const sw = R.querySelector('[data-sw]'); if (sw) sw.classList.toggle('on', h.states[c.schedule_switch]?.state === 'on');
     const tm = R.querySelector('[data-stv]'); if (tm) { const st = h.states[c.schedule_time], on = !c.schedule_switch || h.states[c.schedule_switch]?.state === 'on'; tm.textContent = (dead(st) ? '—' : this._time(st)) + (on ? '' : ' · off'); tm.style.opacity = on ? 1 : .55; }
+  }
+  _sizes() {
+    const c = this._cfg, px = (k, v) => (c[k] ? `${v}:${+c[k]}px;` : '');
+    return px('caption_size', '--cap') + px('title_size', '--z-title') + px('main_button_size', '--z-main') + px('button_size', '--z-btn') + px('button_label_size', '--z-blabel')
+      + px('heading_size', '--z-head') + px('tile_name_size', '--z-name') + px('tile_value_size', '--z-value') + px('tile_icon_size', '--z-icon') + px('tire_size', '--z-tire')
+      + (c.picture_size ? `--z-pic:${+c.picture_size}%;--z-picf:${+c.picture_size / 94};` : '');
   }
   _fit() {   // captions as big as the setting allows, all the same size, none cut off
     const max = +this._cfg.caption_size || 14.5, els = [...this.shadowRoot.querySelectorAll('.lv')]; if (!els.length) return;
@@ -319,7 +325,7 @@ const colorSel = { select: { mode: 'dropdown', options: Object.keys(COLORS).map(
 const LABELS = {
   name: 'Vehicle name', image: 'Picture (web address or /local/… file)', image_entity: 'Or use a picture entity', show_updated: 'Show "Updated … ago"', updated_entity: 'Sensor that shows when the data last updated',
   stats_title: 'Heading above the info tiles (optional)', confirm_all: 'Ask "are you sure?" before every button', haptics: 'Vibrate on press (phones)',
-  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', caption_size: 'Size of the coloured caption on one-line paired tiles (e.g. Fuel → 165 km). Shrinks automatically if it would get cut off', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
+  schedule_switch: 'Scheduled start on/off (automation or switch)', status_minutes: 'Show results for', title_size: 'Vehicle name (default 24)', picture_size: 'Picture width (default 94%)', main_button_size: 'Big main button (default 17)', button_size: 'Round buttons (default 58)', button_label_size: 'Round button names (default 13)', heading_size: 'Section headings (default 13.5)', tile_name_size: 'Tile names (default 15.5)', tile_value_size: 'Tile values (default 17)', tile_icon_size: 'Tile icons (default 34)', tire_size: 'Tire pressures (default 18)', caption_size: 'Coloured caption next to a tile name (default 14.5, shrinks if it would get cut off)', status_timeout: 'Call it failed after no answer for', tire_front_left: 'Front left', tire_front_right: 'Front right', tire_rear_left: 'Rear left', tire_rear_right: 'Rear right', tire_low: 'Warn below', tires_title: 'Heading', health: 'Warning sensors (shown only when something is wrong)', health_ok: 'State that means OK', health_title: 'Heading', schedule_time: 'Scheduled start time',
 };
 class OneStopVehicleCardEditor extends HTMLElement {
   setConfig(c) { this._config = { ...c }; this._draw(); }
@@ -357,6 +363,7 @@ class OneStopVehicleCardEditor extends HTMLElement {
   _schema() {
     const c = this._config, na = Math.min(MAX_ACTIONS, (c.actions || []).length + 1), ns = Math.min(MAX_STATS, (c.stats || []).length + 1);
     const grid = s => ({ type: 'grid', name: '', schema: s });
+    const sz = (name, min, max, _d, unit = 'px') => ({ name, selector: { number: { min, max, step: 0.5, mode: 'slider', unit_of_measurement: unit } } });
     const title = (arr, i, word) => { const x = (arr || [])[i]; return x ? `${x.name || this._hass.states[x.entity]?.attributes?.friendly_name || x.entity || word}` : `+ Add ${word.toLowerCase()}`; };
     const acts = Array.from({ length: na }, (_, i) => ({ type: 'expandable', name: '', title: title(c.actions, i, 'Button'), icon: (c.actions || [])[i]?.icon || 'mdi:gesture-tap-button', schema: [
       { name: `a${i}_entity`, selector: { entity: { filter: [{ domain: 'button' }, { domain: 'script' }, { domain: 'lock' }, { domain: 'switch' }, { domain: 'input_button' }, { domain: 'scene' }, { domain: 'automation' }] } } },
@@ -390,9 +397,11 @@ class OneStopVehicleCardEditor extends HTMLElement {
       { type: 'expandable', name: '', title: 'Scheduled start', icon: 'mdi:clock-start', schema: [
         { name: 'schedule_switch', selector: { entity: { filter: [{ domain: 'automation' }, { domain: 'switch' }, { domain: 'input_boolean' }] } } },
         { name: 'schedule_time', selector: { entity: { filter: { domain: 'input_datetime' } } } }] },
+      { type: 'expandable', name: '', title: 'Sizes', icon: 'mdi:format-size', schema: [
+        sz('title_size', 16, 36, 24), sz('picture_size', 50, 100, 94, '%'), sz('main_button_size', 13, 24, 17), sz('button_size', 40, 80, 58), sz('button_label_size', 10, 18, 13),
+        sz('heading_size', 10, 20, 13.5), sz('tile_name_size', 11, 22, 15.5), sz('tile_value_size', 12, 26, 17), sz('caption_size', 11, 24, 14.5), sz('tile_icon_size', 24, 48, 34), sz('tire_size', 12, 26, 18)] },
       { type: 'expandable', name: '', title: 'Other', icon: 'mdi:cog-outline', schema: [
         { name: 'show_updated', selector: { boolean: {} } }, { name: 'updated_entity', selector: { entity: {} } },
-        { name: 'caption_size', selector: { number: { min: 11, max: 24, step: 0.5, mode: 'slider', unit_of_measurement: 'px' } } },
         grid([{ name: 'status_minutes', selector: { number: { min: 1, max: 240, mode: 'box', unit_of_measurement: 'min' } } }, { name: 'status_timeout', selector: { number: { min: 30, max: 900, mode: 'box', unit_of_measurement: 's' } } }]),
         { name: 'confirm_all', selector: { boolean: {} } }, { name: 'haptics', selector: { boolean: {} } }] },
     ];
